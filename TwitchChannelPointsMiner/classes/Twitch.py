@@ -22,9 +22,14 @@ from typing import Dict, Any
 # from base64 import urlsafe_b64decode
 # from datetime import datetime
 
+from TwitchChannelPointsMiner.classes.Chat import ChatPresence
 from TwitchChannelPointsMiner.classes.entities.Campaign import Campaign
 from TwitchChannelPointsMiner.classes.entities.CommunityGoal import CommunityGoal
 from TwitchChannelPointsMiner.classes.entities.Drop import Drop
+from TwitchChannelPointsMiner.classes.entities.Streamer import (
+    Streamer,
+    StreamerSettings,
+)
 from TwitchChannelPointsMiner.classes.Exceptions import (
     StreamerDoesNotExistException,
     StreamerIsOfflineException,
@@ -32,7 +37,6 @@ from TwitchChannelPointsMiner.classes.Exceptions import (
 from TwitchChannelPointsMiner.classes.Settings import (
     Events,
     FollowersOrder,
-    Priority,
     Settings,
 )
 from TwitchChannelPointsMiner.classes.TwitchLogin import TwitchLogin
@@ -397,85 +401,63 @@ class Twitch(object):
                 We'll take the first two streamers from the final list as they have the highest priority.
                 """
                 max_watch_amount = 2
-                streamers_watching = set()
+                streamers_watching = []
 
                 def remaining_watch_amount():
                     return max_watch_amount - len(streamers_watching)
 
-                for prior in priority:
+                def add_streamer_to_watch(index):
+                    if (
+                        remaining_watch_amount() > 0
+                        and index not in streamers_watching
+                    ):
+                        streamers_watching.append(index)
+
+                def watch_streak_condition(index):
+                    """
+                    Check if we need to change priority based on watch streak.
+                    Viewers receive points for returning for x consecutive streams.
+                    Each stream must be at least 10 minutes long and it must have been at least 30 minutes since the last stream ended.
+                    Watch at least 6m for get the +10.
+                    """
+                    return (
+                        streamers[index].settings.watch_streak is True
+                        and streamers[index].stream.watch_streak_missing is True
+                        and (
+                            streamers[index].offline_at == 0
+                            or (
+                                (time.time() - streamers[index].offline_at)
+                                // 60
+                            )
+                            > 30
+                        )
+                        # fix #425
+                        and streamers[index].stream.minute_watched < 7
+                    )
+
+                # Always walk the configured streamers from first to last.
+                # 1. Catch missing watch streaks.
+                # 2. Farm eligible drops.
+                # 3. Otherwise watch configured streamers for channel points.
+                for index in streamers_index:
                     if remaining_watch_amount() <= 0:
                         break
+                    if watch_streak_condition(index):
+                        add_streamer_to_watch(index)
 
-                    if prior == Priority.ORDER:
-                        # Get the first 2 items, they are already in order
-                        streamers_watching.update(streamers_index[:remaining_watch_amount()])
+                for index in streamers_index:
+                    if remaining_watch_amount() <= 0:
+                        break
+                    if streamers[index].drops_condition() is True:
+                        add_streamer_to_watch(index)
 
-                    elif prior in [Priority.POINTS_ASCENDING, Priority.POINTS_DESCENDING]:
-                        items = [
-                            {
-                                "points": streamers[index].channel_points,
-                                "index": index
-                            }
-                            for index in streamers_index
-                        ]
-                        items = sorted(
-                            items,
-                            key=lambda x: x["points"],
-                            reverse=(
-                                True if prior == Priority.POINTS_DESCENDING else False
-                            ),
-                        )
-                        streamers_watching.update([item["index"] for item in items][:remaining_watch_amount()])
+                for index in streamers_index:
+                    if remaining_watch_amount() <= 0:
+                        break
+                    if streamers[index].settings.bet is not None:
+                        add_streamer_to_watch(index)
 
-                    elif prior == Priority.STREAK:
-                        """
-                        Check if we need need to change priority based on watch streak
-                        Viewers receive points for returning for x consecutive streams.
-                        Each stream must be at least 10 minutes long and it must have been at least 30 minutes since the last stream ended.
-                        Watch at least 6m for get the +10
-                        """
-                        for index in streamers_index:
-                            if (
-                                streamers[index].settings.watch_streak is True
-                                and streamers[index].stream.watch_streak_missing is True
-                                and (
-                                    streamers[index].offline_at == 0
-                                    or (
-                                        (time.time() -
-                                         streamers[index].offline_at)
-                                        // 60
-                                    )
-                                    > 30
-                                )
-                                # fix #425
-                                and streamers[index].stream.minute_watched < 7
-                            ):
-                                streamers_watching.add(index)
-                                if remaining_watch_amount() <= 0:
-                                    break
-
-                    elif prior == Priority.DROPS:
-                        for index in streamers_index:
-                            if streamers[index].drops_condition() is True:
-                                streamers_watching.add(index)
-                                if remaining_watch_amount() <= 0:
-                                    break
-
-                    elif prior == Priority.SUBSCRIBED:
-                        streamers_with_multiplier = [
-                            index
-                            for index in streamers_index
-                            if streamers[index].viewer_has_points_multiplier()
-                        ]
-                        streamers_with_multiplier = sorted(
-                            streamers_with_multiplier,
-                            key=lambda x: streamers[x].total_points_multiplier(
-                            ),
-                            reverse=True,
-                        )
-                        streamers_watching.update(streamers_with_multiplier[:remaining_watch_amount()])
-
-                streamers_watching = list(streamers_watching)[:max_watch_amount]
+                streamers_watching = streamers_watching[:max_watch_amount]
 
                 for index in streamers_watching:
                     # next_iteration = time.time() + 60 / len(streamers_watching)
@@ -894,6 +876,59 @@ class Twitch(object):
                         break
         return campaigns
 
+    def __ensure_campaign_fallback_streamers(self, streamers, campaigns, limit=10):
+        fallback_settings = StreamerSettings(
+            make_predictions=False,
+            follow_raid=False,
+            claim_drops=True,
+            claim_moments=False,
+            watch_streak=False,
+            community_goals=False,
+            chat=ChatPresence.NEVER,
+        )
+
+        known_streamers = {streamer.username for streamer in streamers}
+
+        for campaign in campaigns:
+            if campaign.in_inventory is not True or campaign.drops == []:
+                continue
+
+            has_active_streamer = any(
+                streamer.drops_condition() is True
+                and campaign.id in streamer.stream.campaigns_ids
+                for streamer in streamers
+            )
+            if has_active_streamer is True:
+                continue
+
+            added_for_campaign = 0
+            channel_ids_by_login = dict(zip(campaign.channel_logins, campaign.channels))
+            for login in campaign.channel_logins:
+                if login in known_streamers:
+                    continue
+
+                fallback_streamer = Streamer(login, settings=fallback_settings)
+                fallback_streamer.channel_id = channel_ids_by_login.get(login, "")
+                if fallback_streamer.channel_id == "":
+                    try:
+                        fallback_streamer.channel_id = self.get_channel_id(login)
+                    except StreamerDoesNotExistException:
+                        continue
+
+                streamers.append(fallback_streamer)
+                known_streamers.add(login)
+                added_for_campaign += 1
+
+                logger.info(
+                    f"Added fallback drop streamer {fallback_streamer.username} "
+                    f"for campaign {campaign.name}",
+                    extra={"emoji": ":package:", "event": Events.DROP_STATUS},
+                )
+                self.check_streamer_online(fallback_streamer)
+
+                if added_for_campaign >= limit:
+                    break
+
     def claim_drop(self, drop):
         logger.info(
             f"Claim {drop}", extra={"emoji": ":package:", "event": Events.DROP_CLAIM}
@@ -939,6 +974,9 @@ class Twitch(object):
         campaigns = []
         while self.running:
             try:
+                # Claim completed drops on every sync pass so completed drops are not missed.
+                self.claim_all_drops_from_inventory()
+
                 # Get update from dashboard each 60minutes
                 if (
                     campaigns_update == 0
@@ -949,10 +987,6 @@ class Twitch(object):
                     #####################################
                 ):
                     campaigns_update = time.time()
-
-                    # TEMPORARY AUTO DROP CLAIMING FIX
-                    self.claim_all_drops_from_inventory()
-                    #####################################
 
                     # Get full details from current ACTIVE campaigns
                     # Use dashboard so we can explore new drops not currently active in our Inventory
@@ -975,6 +1009,8 @@ class Twitch(object):
 
                 # Divide et impera :)
                 campaigns = self.__sync_campaigns(campaigns)
+
+                self.__ensure_campaign_fallback_streamers(streamers, campaigns)
 
                 # Check if user It's currently streaming the same game present in campaigns_details
                 for i in range(0, len(streamers)):
