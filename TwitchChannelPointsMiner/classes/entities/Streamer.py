@@ -87,10 +87,11 @@ class Streamer(object):
         "raid",
         "history",
         "streamer_url",
+        "source",
         "mutex",
     ]
 
-    def __init__(self, username, settings=None):
+    def __init__(self, username, settings=None, source="List"):
         self.username: str = username.lower().strip()
         self.channel_id: str = ""
         self.settings = settings
@@ -111,15 +112,20 @@ class Streamer(object):
         self.history = {}
 
         self.streamer_url = f"{URL}/{self.username}"
+        self.source = source
 
         self.mutex = Lock()
 
     def __repr__(self):
-        return f"Streamer(username={self.username}, channel_id={self.channel_id}, channel_points={_millify(self.channel_points)})"
+        return (
+            f"Streamer(username={self.username}, source={self.source}, "
+            f"channel_id={self.channel_id}, "
+            f"channel_points={_millify(self.channel_points)})"
+        )
 
     def __str__(self):
         return (
-            f"{self.username} ({_millify(self.channel_points)} points)"
+            f"{self.username} [{self.source}] ({_millify(self.channel_points)} points)"
             if Settings.logger.less
             else self.__repr__()
         )

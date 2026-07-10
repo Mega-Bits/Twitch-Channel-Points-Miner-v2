@@ -23,6 +23,7 @@ class Campaign(object):
         "dt_match",
         "drops",
         "channels",
+        "channel_logins",
     ]
 
     def __init__(self, dict):
@@ -30,11 +31,15 @@ class Campaign(object):
         self.game = dict["game"]
         self.name = dict["name"]
         self.status = dict["status"]
-        self.channels = (
-            []
-            if dict["allow"]["channels"] is None
-            else list(map(lambda x: x["id"], dict["allow"]["channels"]))
-        )
+        allowed_channels = dict["allow"].get("channels") or []
+        self.channels = []
+        self.channel_logins = []
+        for channel in allowed_channels:
+            login = (channel.get("login") or channel.get("name") or "").lower()
+            channel_id = channel.get("id")
+            if login != "" and channel_id is not None:
+                self.channel_logins.append(login)
+                self.channels.append(channel_id)
         self.in_inventory = False
 
         self.end_at = parse_datetime(dict["endAt"])
