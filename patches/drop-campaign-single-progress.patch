@@ -1,0 +1,58 @@
+diff --git a/TwitchChannelPointsMiner/classes/Twitch.py b/TwitchChannelPointsMiner/classes/Twitch.py
+index c93cf7e..692c49f 100644
+--- a/TwitchChannelPointsMiner/classes/Twitch.py
++++ b/TwitchChannelPointsMiner/classes/Twitch.py
+@@ -520,21 +520,31 @@ class Twitch(object):
+                         add(locked_candidates[0])
+                     break
+ 
+-        # A Drop can progress on only one channel at a time. Remaining capacity is
+-        # reserved for the user's normal priority list, including later watch streaks.
++        # A Drop can progress on only one channel at a time. When a campaign is
++        # locked, do not let a second Drop-enabled channel steal its progress.
++        priority_indexes = main_indexes
++        if self.locked_drop_campaign_id is not None or selected:
++            priority_indexes = [
++                index
++                for index in main_indexes
++                if index in selected or has_unfinished_drop(index) is False
++            ]
++
++        # Remaining capacity is reserved for the user's normal priority list,
++        # including watch streaks from channels that come online later.
+         for prior in priority:
+             if remaining_watch_amount() <= 0:
+                 break
+             if prior == Priority.DROPS:
+                 continue
+             if prior == Priority.ORDER:
+-                for index in main_indexes:
++                for index in priority_indexes:
+                     add(index)
+                     if remaining_watch_amount() <= 0:
+                         break
+             elif prior in [Priority.POINTS_ASCENDING, Priority.POINTS_DESCENDING]:
+                 ordered = sorted(
+-                    main_indexes,
++                    priority_indexes,
+                     key=lambda index: streamers[index].channel_points,
+                     reverse=prior == Priority.POINTS_DESCENDING,
+                 )
+@@ -543,7 +553,7 @@ class Twitch(object):
+                     if remaining_watch_amount() <= 0:
+                         break
+             elif prior == Priority.STREAK:
+-                for index in main_indexes:
++                for index in priority_indexes:
+                     if watch_streak_condition(index):
+                         add(index)
+                     if remaining_watch_amount() <= 0:
+@@ -552,7 +562,7 @@ class Twitch(object):
+                 ordered = sorted(
+                     [
+                         index
+-                        for index in main_indexes
++                        for index in priority_indexes
+                         if streamers[index].viewer_has_points_multiplier()
+                     ],
+                     key=lambda index: streamers[index].total_points_multiplier(),
