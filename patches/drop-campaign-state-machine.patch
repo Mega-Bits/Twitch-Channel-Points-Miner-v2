@@ -1,0 +1,539 @@
+diff --git a/TwitchChannelPointsMiner/classes/Twitch.py b/TwitchChannelPointsMiner/classes/Twitch.py
+index 7d367c9..c93cf7e 100644
+--- a/TwitchChannelPointsMiner/classes/Twitch.py
++++ b/TwitchChannelPointsMiner/classes/Twitch.py
+@@ -37,6 +37,7 @@ from TwitchChannelPointsMiner.classes.Exceptions import (
+ from TwitchChannelPointsMiner.classes.Settings import (
+     Events,
+     FollowersOrder,
++    Priority,
+     Settings,
+ )
+ from TwitchChannelPointsMiner.classes.TwitchLogin import TwitchLogin
+@@ -68,6 +69,9 @@ class Twitch(object):
+         "client_session",
+         "client_version",
+         "twilight_build_id_pattern",
++        "active_drop_campaign_ids",
++        "drop_campaign_progress",
++        "locked_drop_campaign_id",
+     ]
+ 
+     def __init__(self, username, user_agent, password=None):
+@@ -89,6 +93,9 @@ class Twitch(object):
+         self.twilight_build_id_pattern = re.compile(
+             r'window\.__twilightBuildID\s*=\s*"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"'
+         )
++        self.active_drop_campaign_ids = frozenset()
++        self.drop_campaign_progress = {}
++        self.locked_drop_campaign_id = None
+ 
+     def login(self):
+         if not os.path.isfile(self.cookies_file):
+@@ -377,6 +384,187 @@ class Twitch(object):
+             logger.error(f"Error with update_client_version: {e}")
+             return self.client_version
+ 
++    def _select_streamers_to_watch(self, streamers, priority, max_watch_amount=2):
++        """Select one drop channel first, then fill remaining slots by priority."""
++        online_indexes = [
++            index
++            for index, streamer in enumerate(streamers)
++            if streamer.is_online is True
++            and (
++                streamer.online_at == 0
++                or (time.time() - streamer.online_at) > 30
++            )
++        ]
++        main_indexes = [
++            index
++            for index in online_indexes
++            if streamers[index].source != "drop_fallback"
++        ]
++        fallback_indexes = [
++            index
++            for index in online_indexes
++            if streamers[index].source == "drop_fallback"
++        ]
++        selected = []
++
++        def remaining_watch_amount():
++            return max_watch_amount - len(selected)
++
++        def add(index):
++            if remaining_watch_amount() > 0 and index not in selected:
++                selected.append(index)
++
++        def watch_streak_condition(index):
++            streamer = streamers[index]
++            return (
++                streamer.settings.watch_streak is True
++                and streamer.stream.watch_streak_missing is True
++                and (
++                    streamer.offline_at == 0
++                    or ((time.time() - streamer.offline_at) // 60) > 30
++                )
++                and streamer.stream.minute_watched < 7
++            )
++
++        def eligible_for_campaign(index, campaign_id):
++            streamer = streamers[index]
++            if streamer.settings.claim_drops is not True:
++                return False
++            if campaign_id not in streamer.stream.campaigns_ids:
++                return False
++            return (
++                streamer.source != "drop_fallback"
++                or campaign_id in streamer.fallback_campaign_ids
++            )
++
++        def has_unfinished_drop(index):
++            streamer = streamers[index]
++            return streamer.drops_condition() is True and any(
++                campaign.drops for campaign in streamer.stream.campaigns
++            )
++
++        def lock_campaign(campaign_id):
++            if campaign_id is None:
++                return
++            if self.locked_drop_campaign_id != campaign_id:
++                logger.info(
++                    f"Prioritizing unfinished drop campaign {campaign_id}",
++                    extra={"emoji": ":package:", "event": Events.DROP_STATUS},
++                )
++            self.locked_drop_campaign_id = campaign_id
++
++        active_campaign_ids = self.active_drop_campaign_ids
++        locked_campaign_id = self.locked_drop_campaign_id
++        if (
++            locked_campaign_id is not None
++            and locked_campaign_id not in active_campaign_ids
++        ):
++            self.locked_drop_campaign_id = None
++            locked_campaign_id = None
++
++        # Keep farming the selected in-progress campaign until inventory says it is complete.
++        if locked_campaign_id is not None:
++            locked_candidates = [
++                index
++                for index in main_indexes + fallback_indexes
++                if eligible_for_campaign(index, locked_campaign_id)
++            ]
++            if locked_candidates:
++                add(locked_candidates[0])
++
++        # With no campaign lock, prefer a drop-enabled channel from the user's list.
++        if locked_campaign_id is None:
++            main_drop_index = next(
++                (index for index in main_indexes if has_unfinished_drop(index)),
++                None,
++            )
++            if main_drop_index is not None:
++                add(main_drop_index)
++                campaign_ids = active_campaign_ids.intersection(
++                    streamers[main_drop_index].stream.campaigns_ids
++                )
++                if campaign_ids:
++                    lock_campaign(
++                        max(
++                            campaign_ids,
++                            key=lambda campaign_id: self.drop_campaign_progress.get(
++                                campaign_id, 0
++                            ),
++                        )
++                    )
++            else:
++                # No suitable main-list channel: lock the most progressed campaign
++                # for which we have explicit allow.channels fallback entries.
++                ordered_campaign_ids = sorted(
++                    active_campaign_ids,
++                    key=lambda campaign_id: self.drop_campaign_progress.get(
++                        campaign_id, 0
++                    ),
++                    reverse=True,
++                )
++                for campaign_id in ordered_campaign_ids:
++                    known_fallback = any(
++                        streamer.source == "drop_fallback"
++                        and campaign_id in streamer.fallback_campaign_ids
++                        for streamer in streamers
++                    )
++                    if not known_fallback:
++                        continue
++                    lock_campaign(campaign_id)
++                    locked_candidates = [
++                        index
++                        for index in main_indexes + fallback_indexes
++                        if eligible_for_campaign(index, campaign_id)
++                    ]
++                    if locked_candidates:
++                        add(locked_candidates[0])
++                    break
++
++        # A Drop can progress on only one channel at a time. Remaining capacity is
++        # reserved for the user's normal priority list, including later watch streaks.
++        for prior in priority:
++            if remaining_watch_amount() <= 0:
++                break
++            if prior == Priority.DROPS:
++                continue
++            if prior == Priority.ORDER:
++                for index in main_indexes:
++                    add(index)
++                    if remaining_watch_amount() <= 0:
++                        break
++            elif prior in [Priority.POINTS_ASCENDING, Priority.POINTS_DESCENDING]:
++                ordered = sorted(
++                    main_indexes,
++                    key=lambda index: streamers[index].channel_points,
++                    reverse=prior == Priority.POINTS_DESCENDING,
++                )
++                for index in ordered:
++                    add(index)
++                    if remaining_watch_amount() <= 0:
++                        break
++            elif prior == Priority.STREAK:
++                for index in main_indexes:
++                    if watch_streak_condition(index):
++                        add(index)
++                    if remaining_watch_amount() <= 0:
++                        break
++            elif prior == Priority.SUBSCRIBED:
++                ordered = sorted(
++                    [
++                        index
++                        for index in main_indexes
++                        if streamers[index].viewer_has_points_multiplier()
++                    ],
++                    key=lambda index: streamers[index].total_points_multiplier(),
++                    reverse=True,
++                )
++                for index in ordered:
++                    add(index)
++                    if remaining_watch_amount() <= 0:
++                        break
++
++        return selected[:max_watch_amount]
++
+     def send_minute_watched_events(self, streamers, priority, chunk_size=3):
+         while self.running:
+             try:
+@@ -398,66 +586,12 @@ class Twitch(object):
+ 
+                 """
+                 Twitch has a limit - you can't watch more than 2 channels at one time.
+-                We'll take the first two streamers from the final list as they have the highest priority.
++                One slot is reserved for an unfinished Drop campaign when possible;
++                remaining slots follow the configured priority list.
+                 """
+-                max_watch_amount = 2
+-                streamers_watching = []
+-
+-                def remaining_watch_amount():
+-                    return max_watch_amount - len(streamers_watching)
+-
+-                def add_streamer_to_watch(index):
+-                    if (
+-                        remaining_watch_amount() > 0
+-                        and index not in streamers_watching
+-                    ):
+-                        streamers_watching.append(index)
+-
+-                def watch_streak_condition(index):
+-                    """
+-                    Check if we need to change priority based on watch streak.
+-                    Viewers receive points for returning for x consecutive streams.
+-                    Each stream must be at least 10 minutes long and it must have been at least 30 minutes since the last stream ended.
+-                    Watch at least 6m for get the +10.
+-                    """
+-                    return (
+-                        streamers[index].settings.watch_streak is True
+-                        and streamers[index].stream.watch_streak_missing is True
+-                        and (
+-                            streamers[index].offline_at == 0
+-                            or (
+-                                (time.time() - streamers[index].offline_at)
+-                                // 60
+-                            )
+-                            > 30
+-                        )
+-                        # fix #425
+-                        and streamers[index].stream.minute_watched < 7
+-                    )
+-
+-                # Always walk the configured streamers from first to last.
+-                # 1. Catch missing watch streaks.
+-                # 2. Farm eligible drops.
+-                # 3. Otherwise watch configured streamers for channel points.
+-                for index in streamers_index:
+-                    if remaining_watch_amount() <= 0:
+-                        break
+-                    if watch_streak_condition(index):
+-                        add_streamer_to_watch(index)
+-
+-                for index in streamers_index:
+-                    if remaining_watch_amount() <= 0:
+-                        break
+-                    if streamers[index].drops_condition() is True:
+-                        add_streamer_to_watch(index)
+-
+-                for index in streamers_index:
+-                    if remaining_watch_amount() <= 0:
+-                        break
+-                    if streamers[index].settings.bet is not None:
+-                        add_streamer_to_watch(index)
+-
+-                streamers_watching = streamers_watching[:max_watch_amount]
++                streamers_watching = self._select_streamers_to_watch(
++                    streamers, priority, max_watch_amount=2
++                )
+ 
+                 for index in streamers_watching:
+                     # next_iteration = time.time() + 60 / len(streamers_watching)
+@@ -861,10 +995,10 @@ class Twitch(object):
+             {},
+         ]:
+             # Iterate all campaigns from dashboard (only active, with working drops)
+-            # In this array we have also the campaigns never started from us (not in nventory)
++            # In this array we have also the campaigns never started from us (not in inventory)
+             for i in range(len(campaigns)):
+                 campaigns[i].clear_drops()  # Remove all the claimed drops
+-                # Iterate all campaigns currently in progress from out inventory
++                # Iterate all campaigns currently in progress from our inventory
+                 for progress in inventory["dropCampaignsInProgress"]:
+                     if progress["id"] == campaigns[i].id:
+                         campaigns[i].in_inventory = True
+@@ -876,6 +1010,45 @@ class Twitch(object):
+                         break
+         return campaigns
+ 
++    def __sync_drop_campaign_state(self, streamers, campaigns):
++        active_campaigns = [
++            campaign
++            for campaign in campaigns
++            if campaign.in_inventory is True and campaign.drops != []
++        ]
++        active_campaign_ids = frozenset(
++            campaign.id for campaign in active_campaigns
++        )
++        campaign_progress = {
++            campaign.id: max(
++                (drop.percentage_progress for drop in campaign.drops),
++                default=0,
++            )
++            for campaign in active_campaigns
++        }
++
++        completed_campaign_id = self.locked_drop_campaign_id
++        self.active_drop_campaign_ids = active_campaign_ids
++        self.drop_campaign_progress = campaign_progress
++
++        if (
++            completed_campaign_id is not None
++            and completed_campaign_id not in active_campaign_ids
++        ):
++            logger.info(
++                f"Drop campaign {completed_campaign_id} completed; returning to main list",
++                extra={"emoji": ":package:", "event": Events.DROP_STATUS},
++            )
++            self.locked_drop_campaign_id = None
++
++        for streamer in streamers:
++            if streamer.source == "drop_fallback":
++                streamer.fallback_campaign_ids = frozenset(
++                    campaign_id
++                    for campaign_id in streamer.fallback_campaign_ids
++                    if campaign_id in active_campaign_ids
++                )
++
+     def __ensure_campaign_fallback_streamers(self, streamers, campaigns, limit=10):
+         fallback_settings = StreamerSettings(
+             make_predictions=False,
+@@ -887,14 +1060,19 @@ class Twitch(object):
+             chat=ChatPresence.NEVER,
+         )
+ 
+-        known_streamers = {streamer.username for streamer in streamers}
++        known_streamers = {streamer.username: streamer for streamer in streamers}
+ 
+         for campaign in campaigns:
+-            if campaign.in_inventory is not True or campaign.drops == []:
++            if (
++                campaign.in_inventory is not True
++                or campaign.drops == []
++                or campaign.channel_logins == []
++            ):
+                 continue
+ 
+             has_active_streamer = any(
+-                streamer.drops_condition() is True
++                streamer.source != "drop_fallback"
++                and streamer.drops_condition() is True
+                 and campaign.id in streamer.stream.campaigns_ids
+                 for streamer in streamers
+             )
+@@ -904,10 +1082,21 @@ class Twitch(object):
+             added_for_campaign = 0
+             channel_ids_by_login = dict(zip(campaign.channel_logins, campaign.channels))
+             for login in campaign.channel_logins:
+-                if login in known_streamers:
++                existing_streamer = known_streamers.get(login)
++                if existing_streamer is not None:
++                    if existing_streamer.source == "drop_fallback":
++                        existing_streamer.fallback_campaign_ids = frozenset(
++                            set(existing_streamer.fallback_campaign_ids)
++                            | {campaign.id}
++                        )
+                     continue
+ 
+-                fallback_streamer = Streamer(login, settings=fallback_settings)
++                fallback_streamer = Streamer(
++                    login,
++                    settings=fallback_settings,
++                    source="drop_fallback",
++                    fallback_campaign_ids={campaign.id},
++                )
+                 fallback_streamer.channel_id = channel_ids_by_login.get(login, "")
+                 if fallback_streamer.channel_id == "":
+                     try:
+@@ -916,7 +1105,7 @@ class Twitch(object):
+                         continue
+ 
+                 streamers.append(fallback_streamer)
+-                known_streamers.add(login)
++                known_streamers[login] = fallback_streamer
+                 added_for_campaign += 1
+ 
+                 logger.info(
+@@ -929,6 +1118,16 @@ class Twitch(object):
+                 if added_for_campaign >= limit:
+                     break
+ 
++    def __refresh_fallback_streamers(self, streamers):
++        for streamer in streamers:
++            if (
++                streamer.source == "drop_fallback"
++                and self.active_drop_campaign_ids.intersection(
++                    streamer.fallback_campaign_ids
++                )
++            ):
++                self.check_streamer_online(streamer)
++
+     def claim_drop(self, drop):
+         logger.info(
+             f"Claim {drop}", extra={"emoji": ":package:", "event": Events.DROP_CLAIM}
+@@ -939,7 +1138,7 @@ class Twitch(object):
+             "input": {"dropInstanceID": drop.drop_instance_id}}
+         response = self.post_gql_request(json_data)
+         try:
+-            # response["data"]["claimDropRewards"] can be null and respose["data"]["errors"] != []
++            # response["data"]["claimDropRewards"] can be null and response["data"]["errors"] != []
+             # or response["data"]["claimDropRewards"]["status"] === DROP_INSTANCE_ALREADY_CLAIMED
+             if ("claimDropRewards" in response["data"]) and (
+                 response["data"]["claimDropRewards"] is None
+@@ -977,55 +1176,47 @@ class Twitch(object):
+                 # Claim completed drops on every sync pass so completed drops are not missed.
+                 self.claim_all_drops_from_inventory()
+ 
+-                # Get update from dashboard each 60minutes
++                # Get update from dashboard periodically.
+                 if (
+                     campaigns_update == 0
+-                    # or ((time.time() - campaigns_update) / 60) > 60
+-                    # TEMPORARY AUTO DROP CLAIMING FIX
+-                    # 30 minutes instead of 60 minutes
+                     or ((time.time() - campaigns_update) / 30) > 30
+-                    #####################################
+                 ):
+                     campaigns_update = time.time()
+ 
+-                    # Get full details from current ACTIVE campaigns
+-                    # Use dashboard so we can explore new drops not currently active in our Inventory
++                    # Get full details from current ACTIVE campaigns.
+                     campaigns_details = self.__get_campaigns_details(
+                         self.__get_drops_dashboard(status="ACTIVE")
+                     )
+                     campaigns = []
+ 
+-                    # Going to clear array and structure. Remove all the timeBasedDrops expired or not started yet
+-                    for index in range(0, len(campaigns_details)):
+-                        if campaigns_details[index] is not None:
+-                            campaign = Campaign(campaigns_details[index])
+-                            if campaign.dt_match is True:
+-                                # Remove all the drops already claimed or with dt not matching
+-                                campaign.clear_drops()
+-                                if campaign.drops != []:
+-                                    campaigns.append(campaign)
+-                        else:
++                    for campaign_details in campaigns_details:
++                        if campaign_details is None:
+                             continue
++                        campaign = Campaign(campaign_details)
++                        if campaign.dt_match is True:
++                            campaign.clear_drops()
++                            if campaign.drops != []:
++                                campaigns.append(campaign)
+ 
+-                # Divide et impera :)
+                 campaigns = self.__sync_campaigns(campaigns)
+-
++                self.__sync_drop_campaign_state(streamers, campaigns)
+                 self.__ensure_campaign_fallback_streamers(streamers, campaigns)
++                # Fallback channels do not exist in the startup PubSub subscription list.
++                # Poll them each minute so channels that go live later are still detected.
++                self.__refresh_fallback_streamers(streamers)
+ 
+-                # Check if user It's currently streaming the same game present in campaigns_details
+-                for i in range(0, len(streamers)):
+-                    if streamers[i].drops_condition() is True:
+-                        # yes! The streamer[i] have the drops_tags enabled and we It's currently stream a game with campaign active!
+-                        # With 'campaigns_ids' we are also sure that this streamer have the campaign active.
+-                        # yes! The streamer[index] have the drops_tags enabled and we It's currently stream a game with campaign active!
+-                        streamers[i].stream.campaigns = list(
++                for streamer in streamers:
++                    if streamer.drops_condition() is True:
++                        streamer.stream.campaigns = list(
+                             filter(
+-                                lambda x: x.drops != []
+-                                and x.game == streamers[i].stream.game
+-                                and x.id in streamers[i].stream.campaigns_ids,
++                                lambda campaign: campaign.drops != []
++                                and campaign.game == streamer.stream.game
++                                and campaign.id in streamer.stream.campaigns_ids,
+                                 campaigns,
+                             )
+                         )
++                    else:
++                        streamer.stream.campaigns = []
+ 
+             except (ValueError, KeyError, requests.exceptions.ConnectionError) as e:
+                 logger.error(f"Error while syncing inventory: {e}")
+diff --git a/TwitchChannelPointsMiner/classes/entities/Streamer.py b/TwitchChannelPointsMiner/classes/entities/Streamer.py
+index 23ada3d..4ab9d16 100644
+--- a/TwitchChannelPointsMiner/classes/entities/Streamer.py
++++ b/TwitchChannelPointsMiner/classes/entities/Streamer.py
+@@ -87,10 +87,14 @@ class Streamer(object):
+         "raid",
+         "history",
+         "streamer_url",
++        "source",
++        "fallback_campaign_ids",
+         "mutex",
+     ]
+ 
+-    def __init__(self, username, settings=None):
++    def __init__(
++        self, username, settings=None, source="list", fallback_campaign_ids=None
++    ):
+         self.username: str = username.lower().strip()
+         self.channel_id: str = ""
+         self.settings = settings
+@@ -111,6 +115,8 @@ class Streamer(object):
+         self.history = {}
+ 
+         self.streamer_url = f"{URL}/{self.username}"
++        self.source = source
++        self.fallback_campaign_ids = frozenset(fallback_campaign_ids or [])
+ 
+         self.mutex = Lock()
+ 

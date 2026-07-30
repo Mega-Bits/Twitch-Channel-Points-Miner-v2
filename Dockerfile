@@ -22,7 +22,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --fix-missing --no-ins
     libblas-dev \
     liblapack-dev \
     make \
-    cmake \    
+    patch \
+    cmake \
     automake \
     ninja-build \
     g++ \
@@ -44,4 +45,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --fix-missing --no-ins
   && rm -rf /usr/share/doc/*
 
 ADD ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
+COPY ./patches/drop-campaign-state-machine.patch /tmp/drop-campaign-state-machine.patch
+COPY ./patches/drop-campaign-single-progress.patch /tmp/drop-campaign-single-progress.patch
+RUN patch --batch --forward -p1 < /tmp/drop-campaign-state-machine.patch \
+  && patch --batch --forward -p1 < /tmp/drop-campaign-single-progress.patch \
+  && python -m compileall -q TwitchChannelPointsMiner \
+  && rm -f /tmp/drop-campaign-state-machine.patch \
+  && rm -f /tmp/drop-campaign-single-progress.patch
+
 ENTRYPOINT [ "python", "run.py" ]
