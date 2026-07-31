@@ -25,6 +25,9 @@ class Settings(object):
 
 
 class Events(Enum):
+    STARTUP_STATUS = auto()
+    START_WATCHING = auto()
+    STOP_WATCHING = auto()
     STREAMER_ONLINE = auto()
     STREAMER_OFFLINE = auto()
     GAIN_FOR_RAID = auto()
