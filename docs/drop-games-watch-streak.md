@@ -30,14 +30,22 @@ twitch_miner.mine(
 )
 ```
 
-For matching active Drop campaigns, the miner queries Twitch's game directory with the `DROPS_ENABLED` filter and dynamically adds live candidates.
+For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for that campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
+
+At every inventory sync the miner:
+
+1. refreshes game and Drop eligibility for configured streamers;
+2. keeps the already selected configured streamer while it remains eligible;
+3. switches to another configured streamer only when the current one goes offline, changes game, or loses campaign eligibility;
+4. searches the game directory when no configured streamer qualifies;
+5. replaces a directory fallback with a qualifying configured streamer as soon as the next inventory sync detects one;
+6. releases the streamer and campaign lock when the Drop campaign is complete.
 
 Game-directory channels:
 
 - are used only for the dedicated Drop slot;
 - never enter `ORDER`, `STREAK`, `SUBSCRIBED`, or point-balance priorities;
-- are refreshed every two minutes and checked for online state during campaign sync;
-- prefer configured streamer-list channels when one already qualifies;
-- follow the existing campaign lock until the Drop campaign is complete.
+- remain available as warm fallbacks while their campaign is still active;
+- never override an eligible configured-list streamer.
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
