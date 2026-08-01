@@ -42,4 +42,39 @@ The database uses WAL mode and contains:
 
 Unchanged snapshots are not inserted repeatedly. Entries older than 90 days are removed by a daily cleanup pass. Watch sessions left open by an unclean shutdown are closed automatically when the database is opened again.
 
-The history layer exposes bounded queries for recent events, claims, snapshots, and watch sessions. These APIs are used by the read-only web dashboard in the next stacked change.
+## Read-only web dashboard
+
+The web dashboard is disabled by default. Enable it through `mine()` or `run()`:
+
+```python
+twitch_miner.mine(
+    streamers=["otzdarva"],
+    drop_games=["Dead by Daylight"],
+    status_web=True,
+    status_web_host="127.0.0.1",
+    status_web_port=8080,
+)
+```
+
+It provides:
+
+- a responsive live overview refreshed every ten seconds;
+- current watch slots and Drop progress;
+- queued campaigns and eligible streamers;
+- recent events from SQLite;
+- recent watch sessions;
+- JSON endpoints for status, events, claims, snapshots, and watch sessions;
+- an unauthenticated `/healthz` endpoint for container health checks.
+
+The server binds to `127.0.0.1` by default. Binding to another interface requires an authentication token:
+
+```python
+status_web=True,
+status_web_host="0.0.0.0",
+status_web_port=8080,
+status_web_token="replace-with-a-long-random-token",
+```
+
+When a token is configured, the browser uses HTTP Basic authentication. The username is ignored and the token is used as the password. The application sends no-store, frame-denial, content-type, referrer, and content-security headers.
+
+For Docker access, map the configured port explicitly, for example `8080:8080`. Do not expose the service publicly without TLS and the required token.
