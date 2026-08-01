@@ -7,6 +7,7 @@ from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_gam
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
 from .drop_games_patch import apply_startup_patch as _apply_drop_games_startup_patch
 from .playback_access_token_patch import apply_patch as _apply_playback_access_token_patch
+from .status_dashboard_patch import apply_patch as _apply_status_dashboard_patch
 from .watch_notifications_patch import apply_patch as _apply_watch_notifications_patch
 from .watch_streak_persistence_patch import apply_patch as _apply_watch_streak_persistence_patch
 
@@ -18,12 +19,14 @@ _apply_drop_games_patch()
 _apply_drop_game_main_list_preference_patch()
 _apply_watch_notifications_patch()
 _apply_drop_games_startup_patch()
+_apply_status_dashboard_patch()
 del _apply_channel_points_context_patch
 del _apply_discord_format_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
 del _apply_drop_games_startup_patch
 del _apply_playback_access_token_patch
+del _apply_status_dashboard_patch
 del _apply_watch_notifications_patch
 del _apply_watch_streak_persistence_patch
 
