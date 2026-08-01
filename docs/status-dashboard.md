@@ -78,3 +78,30 @@ status_web_token="replace-with-a-long-random-token",
 When a token is configured, the browser uses HTTP Basic authentication. The username is ignored and the token is used as the password. The application sends no-store, frame-denial, content-type, referrer, and content-security headers.
 
 For Docker access, map the configured port explicitly, for example `8080:8080`. Do not expose the service publicly without TLS and the required token.
+
+## Optional web controls
+
+Operational controls are separately disabled by default. They require both the web dashboard and an authentication token:
+
+```python
+twitch_miner.mine(
+    streamers=["otzdarva"],
+    drop_games=["Dead by Daylight"],
+    status_web=True,
+    status_web_host="0.0.0.0",
+    status_web_port=8080,
+    status_web_token="replace-with-a-long-random-token",
+    status_web_controls=True,
+)
+```
+
+Open `/controls` after authenticating. The control page provides only bounded operational actions:
+
+- refresh the persistent Discord dashboard;
+- run the existing completed-Drop claim pass immediately;
+- recheck streamer online state, current game, and Drop eligibility;
+- clear the compact recent activity shown in Discord while retaining SQLite history.
+
+Every control action is recorded as a `WEB_CONTROL` event in SQLite. Mutating requests require both HTTP Basic authentication and a per-process CSRF token. Only one background control action can run at a time.
+
+The controls intentionally do not force a watch slot, bypass campaign eligibility, pause the miner, or switch away from the sticky Drop-campaign logic. Those operations could lose Drop progress and require a separate design with explicit conflict handling.
