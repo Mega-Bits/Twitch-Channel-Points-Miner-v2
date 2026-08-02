@@ -15,6 +15,7 @@ logger_settings=LoggerSettings(
             Events.START_WATCHING,
             Events.STOP_WATCHING,
             Events.DROP_CLAIM,
+            Events.DROP_STATUS,
         ],
     ),
 )
@@ -23,6 +24,8 @@ logger_settings=LoggerSettings(
 `webhook_api` receives normal event messages selected by `events`. `dashboard_webhook_api` receives only the single persistent status message. The dashboard does not use a custom event and does not need to be listed in `events`.
 
 The default value of `dashboard_webhook_api` is an empty string. When it is empty, the miner does not create or update a Discord dashboard message.
+
+## Dashboard contents
 
 The dashboard contains:
 
@@ -35,7 +38,9 @@ The dashboard contains:
 
 All displayed times use Discord timestamps. Before the dashboard starts, the miner measures the dashboard webhook's Discord HTTP server clock and applies that offset to locally-created timestamps such as startup, inventory sync, points events, and claims. This prevents a skewed container clock from rendering those events in the future. Twitch-provided campaign end times remain unchanged.
 
-The former separate `Miner started` notification has been removed. The miner no longer creates a startup notification event or Discord message; startup state is represented only by the persistent dashboard and normal application logs.
+The former separate `Miner started` notification has been removed. The miner no longer creates that startup notification or Discord message; startup state is represented only by the persistent dashboard and normal application logs.
+
+## Persistence and recovery
 
 The message ID and compact recent activity state are stored next to the account cookie:
 
@@ -49,4 +54,4 @@ If the stored Discord message was deleted or belongs to a different dashboard we
 
 When migrating from the previous shared-webhook behavior, the old dashboard message in the event channel is no longer updated. It can be deleted manually after the new dashboard message appears in the dedicated channel.
 
-Existing Drop claim, points, online/offline, and watch-target notifications continue to be sent to the normal event webhook according to the configured Discord event list.
+Existing Drop claim, points, online/offline, and watch-target notifications continue to be sent to the normal event webhook according to the configured Discord event list. See [events-and-features.md](events-and-features.md) for the complete event reference.
