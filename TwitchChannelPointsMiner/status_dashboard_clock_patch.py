@@ -2,8 +2,8 @@
 
 The miner normally uses the container clock for local events. If that clock is
 skewed, Discord renders relative timestamps in the future. This patch measures
-the dedicated dashboard webhook's HTTP Date header, applies the offset only to
-locally-created times, and suppresses the legacy STARTUP_STATUS Discord card.
+the dedicated dashboard webhook's HTTP Date header and applies the offset only
+to locally-created times.
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ from typing import Any
 import requests
 
 from TwitchChannelPointsMiner import status_dashboard_patch as dashboard
-from TwitchChannelPointsMiner.classes.Discord import Discord
-from TwitchChannelPointsMiner.classes.Settings import Events
 
 logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_status_dashboard_clock_patch"
@@ -99,21 +97,7 @@ def _correct_event(item: Any, offset: float) -> Any:
 
 
 def apply_patch() -> None:
-    """Install clock correction and suppress the redundant startup card."""
-    original_send = Discord.send
-    if not getattr(original_send, _PATCH_MARKER, False):
-
-        def send_without_startup(self, message, event):
-            if (
-                event == Events.STARTUP_STATUS
-                or str(event) == str(Events.STARTUP_STATUS)
-            ):
-                return None
-            return original_send(self, message, event)
-
-        setattr(send_without_startup, _PATCH_MARKER, True)
-        Discord.send = send_without_startup
-
+    """Install dashboard clock correction."""
     state_class = dashboard.DashboardState
 
     original_start = state_class.start
