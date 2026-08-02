@@ -47,4 +47,6 @@ Only a SHA-256 fingerprint of the dashboard webhook URL is persisted. The webhoo
 
 If the stored Discord message was deleted or belongs to a different dashboard webhook, the miner creates a replacement and stores its new message ID. Dashboard updates are debounced to avoid editing the message more than once every five seconds.
 
+When migrating from the previous shared-webhook behavior, the old dashboard message in the event channel is no longer updated. It can be deleted manually after the new dashboard message appears in the dedicated channel.
+
 Existing Drop claim, points, online/offline, and watch-target notifications continue to be sent to the normal event webhook according to the configured Discord event list.
