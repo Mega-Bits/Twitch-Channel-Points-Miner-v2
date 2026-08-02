@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-__version__ = "2.0.5"
+from pathlib import Path as _Path
+
+__version__ = _Path(__file__).with_name("VERSION").read_text(encoding="utf-8").strip()
+del _Path
 
 from .channel_points_context_patch import apply_patch as _apply_channel_points_context_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
@@ -40,4 +43,5 @@ from .TwitchChannelPointsMiner import TwitchChannelPointsMiner
 
 __all__ = [
     "TwitchChannelPointsMiner",
+    "__version__",
 ]
