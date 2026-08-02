@@ -327,34 +327,3 @@ def apply_patch():
 
         setattr(refresh_with_game_streamers, _PATCH_MARKER, True)
         setattr(Twitch, refresh_name, refresh_with_game_streamers)
-
-
-def apply_startup_patch():
-    """Add configured game directories to the existing startup notification."""
-    from TwitchChannelPointsMiner import watch_notifications_patch as notifications
-
-    emit = notifications._emit_startup_once
-    startup_marker = f"{_PATCH_MARKER}_startup"
-    if getattr(emit, startup_marker, False):
-        return
-
-    def emit_with_games(twitch, streamers, priority):
-        key = id(twitch)
-        with notifications._STATE_LOCK:
-            if key in notifications._STARTUP_SENT:
-                return
-            notifications._STARTUP_SENT.add(key)
-        notifications._enable_discord_events()
-        messages = notifications._startup_messages(streamers, priority)
-        games = get_drop_games(twitch)
-        if games and messages:
-            game_text = ", ".join(f"`{game}`" for game in games)
-            messages[0] = f"**Drop games:** {game_text}\n{messages[0]}"
-        for message in messages:
-            notifications.logger.info(
-                message,
-                extra={"event": notifications.Events.STARTUP_STATUS},
-            )
-
-    setattr(emit_with_games, startup_marker, True)
-    notifications._emit_startup_once = emit_with_games

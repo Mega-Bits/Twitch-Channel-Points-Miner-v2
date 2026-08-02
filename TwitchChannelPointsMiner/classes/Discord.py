@@ -6,7 +6,7 @@ from TwitchChannelPointsMiner.classes.Settings import Events
 
 
 class Discord(object):
-    __slots__ = ["webhook_api", "events"]
+    __slots__ = ["webhook_api", "dashboard_webhook_api", "events"]
 
     IS_COMPONENTS_V2 = 1 << 15
     COMPONENT_TEXT_DISPLAY = 10
@@ -34,8 +34,15 @@ class Discord(object):
         Events.CHAT_MENTION: ("💬", "Chat mention", 0x60A5FA),
     }
 
-    def __init__(self, webhook_api: str, events: list):
+    def __init__(
+        self,
+        webhook_api: str,
+        events: list,
+        dashboard_webhook_api: str = "",
+    ):
+        """Configure event and optional persistent-dashboard webhooks."""
         self.webhook_api = webhook_api
+        self.dashboard_webhook_api = str(dashboard_webhook_api or "").strip()
         self.events = [str(e) for e in events]
 
     @classmethod

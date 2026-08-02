@@ -1,4 +1,4 @@
-"""Startup and watch-selection notifications for the patched miner."""
+"""Watch-selection notifications for the patched miner."""
 
 import logging
 from threading import Lock
@@ -11,20 +11,10 @@ logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_watch_notifications_patch"
 _STATE_LOCK = Lock()
 _WATCHING = {}
-_STARTUP_SENT = set()
 _NOTIFICATION_EVENTS = (
-    Events.STARTUP_STATUS,
     Events.START_WATCHING,
     Events.STOP_WATCHING,
 )
-
-
-def _name(value):
-    return getattr(value, "name", str(value))
-
-
-def _enabled(value):
-    return "on" if value is True else "off"
 
 
 def _channel(username):
@@ -40,41 +30,6 @@ def _enable_discord_events():
         event_name = str(event)
         if event_name not in discord.events:
             discord.events.append(event_name)
-
-
-def _streamer_settings_line(streamer):
-    settings = streamer.settings
-    status = "online" if streamer.is_online else "offline"
-    source = getattr(streamer, "source", "list")
-    return (
-        f"- {_channel(streamer.username)} · `{status}` · `{source}` · "
-        f"drops `{_enabled(settings.claim_drops)}` · "
-        f"streak `{_enabled(settings.watch_streak)}` · "
-        f"predictions `{_enabled(settings.make_predictions)}` · "
-        f"raid `{_enabled(settings.follow_raid)}` · "
-        f"moments `{_enabled(settings.claim_moments)}` · "
-        f"goals `{_enabled(settings.community_goals)}` · "
-        f"chat `{_name(settings.chat)}`"
-    )
-
-
-def _startup_messages(streamers, priority, limit=3600):
-    priority_text = " > ".join(_name(item) for item in priority) or "none"
-    header = (
-        f"**Priority:** `{priority_text}`\n"
-        f"**Streamers:** `{len(streamers)}`\n"
-    )
-    messages = []
-    current = header
-    for streamer in streamers:
-        line = _streamer_settings_line(streamer)
-        candidate = f"{current}{line}\n"
-        if len(candidate) > limit and current != header:
-            messages.append(current.rstrip())
-            current = "**Streamers continued:**\n"
-        current += f"{line}\n"
-    messages.append(current.rstrip())
-    return messages
 
 
 def _drop_details(twitch, streamer):
@@ -131,17 +86,6 @@ def _stop_message(username, reason):
     )
 
 
-def _emit_startup_once(twitch, streamers, priority):
-    key = id(twitch)
-    with _STATE_LOCK:
-        if key in _STARTUP_SENT:
-            return
-        _STARTUP_SENT.add(key)
-    _enable_discord_events()
-    for message in _startup_messages(streamers, priority):
-        logger.info(message, extra={"event": Events.STARTUP_STATUS})
-
-
 def _sync_watch_notifications(twitch, streamers, selected_indexes):
     key = id(twitch)
     current = {}
@@ -172,7 +116,6 @@ def _stop_all(twitch):
     key = id(twitch)
     with _STATE_LOCK:
         previous = _WATCHING.pop(key, {})
-        _STARTUP_SENT.discard(key)
     for username, previous_state in previous.items():
         logger.info(
             _stop_message(username, previous_state["reason"]),
@@ -181,10 +124,9 @@ def _stop_all(twitch):
 
 
 def apply_patch():
-    """Install notification wrappers once."""
+    """Install watch-selection notification wrappers once."""
     Discord.EVENT_STYLES.update(
         {
-            Events.STARTUP_STATUS: ("🚀", "Miner started", 0x3B82F6),
             Events.START_WATCHING: ("▶️", "Start watching stream", 0x22C55E),
             Events.STOP_WATCHING: ("⏹️", "Stop watching stream", 0x64748B),
         }
@@ -203,7 +145,7 @@ def apply_patch():
     send = Twitch.send_minute_watched_events
     if not getattr(send, _PATCH_MARKER, False):
         def send_with_notifications(self, streamers, priority, chunk_size=3):
-            _emit_startup_once(self, streamers, priority)
+            _enable_discord_events()
             try:
                 return send(self, streamers, priority, chunk_size)
             finally:
