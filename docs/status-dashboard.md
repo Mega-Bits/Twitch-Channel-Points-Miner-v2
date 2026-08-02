@@ -11,7 +11,9 @@ The dashboard contains:
 - the latest points event and latest significant event;
 - the five most recently retained Drop claims.
 
-All displayed times use Discord timestamps. Discord therefore renders absolute and relative times in each viewer's local time zone.
+All displayed times use Discord timestamps. Before the dashboard starts, the miner measures the Discord HTTP server clock and applies that offset to locally-created timestamps such as startup, inventory sync, points events, and claims. This prevents a skewed container clock from rendering those events in the future. Twitch-provided campaign end times remain unchanged.
+
+The separate `Miner started` startup card is suppressed in Discord because the persistent dashboard already contains the startup state. Startup details remain available in the normal application log.
 
 The message ID and compact recent activity state are stored next to the account cookie:
 
