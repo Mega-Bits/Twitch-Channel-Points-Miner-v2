@@ -35,7 +35,7 @@ The dashboard contains:
 
 All displayed times use Discord timestamps. Before the dashboard starts, the miner measures the dashboard webhook's Discord HTTP server clock and applies that offset to locally-created timestamps such as startup, inventory sync, points events, and claims. This prevents a skewed container clock from rendering those events in the future. Twitch-provided campaign end times remain unchanged.
 
-The separate `Miner started` startup card is suppressed in Discord because the persistent dashboard already contains the startup state. Startup details remain available in the normal application log.
+The former separate `Miner started` notification has been removed. The miner no longer creates a startup notification event or Discord message; startup state is represented only by the persistent dashboard and normal application logs.
 
 The message ID and compact recent activity state are stored next to the account cookie:
 
