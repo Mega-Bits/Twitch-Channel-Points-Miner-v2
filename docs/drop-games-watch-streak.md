@@ -12,6 +12,14 @@ Restarting the container during the same broadcast no longer resets the miner's 
 
 This persistence does not change Twitch's server-side Watch Streak rules. Twitch may allow a missed streak of 3 or more broadcasts to be recovered within 24 hours by watching eligible Clips, Stories, VODs, or a later live stream. Only content marked by Twitch as eligible counts; automatic Clip recovery is not implemented by this patch.
 
+Useful notification events:
+
+```python
+Events.START_WATCHING
+Events.STOP_WATCHING
+Events.GAIN_FOR_WATCH_STREAK
+```
+
 ## Farm Drops by game
 
 Pass `drop_games` to `mine()` or `run()`:
@@ -49,3 +57,14 @@ Game-directory channels:
 - never override an eligible configured-list streamer.
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
+
+Useful Drop events:
+
+```python
+Events.DROP_STATUS
+Events.DROP_CLAIM
+Events.START_WATCHING
+Events.STOP_WATCHING
+```
+
+The persistent Discord dashboard shows the active campaign, current Drop progress, selected streamer, queued campaigns, and recent claims without requiring those events to be added to the dashboard webhook.
