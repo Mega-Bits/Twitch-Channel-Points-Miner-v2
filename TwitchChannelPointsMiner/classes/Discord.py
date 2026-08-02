@@ -40,6 +40,7 @@ class Discord(object):
         events: list,
         dashboard_webhook_api: str = "",
     ):
+        """Configure event and optional persistent-dashboard webhooks."""
         self.webhook_api = webhook_api
         self.dashboard_webhook_api = str(dashboard_webhook_api or "").strip()
         self.events = [str(e) for e in events]
