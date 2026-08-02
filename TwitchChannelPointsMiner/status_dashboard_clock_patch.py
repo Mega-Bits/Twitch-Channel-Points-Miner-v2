@@ -2,9 +2,8 @@
 
 The miner normally uses the container clock for local events. If that clock is
 skewed, Discord renders relative timestamps in the future. This patch measures
-Discord's HTTP Date header, applies the offset only to locally-created times,
-and suppresses the legacy STARTUP_STATUS Discord card now that the persistent
-status dashboard exists.
+the dedicated dashboard webhook's HTTP Date header, applies the offset only to
+locally-created times, and suppresses the legacy STARTUP_STATUS Discord card.
 """
 
 from __future__ import annotations
