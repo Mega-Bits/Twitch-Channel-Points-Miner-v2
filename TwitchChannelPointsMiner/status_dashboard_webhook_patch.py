@@ -32,7 +32,11 @@ def _configured_dashboard_webhook():
 
 
 def apply_patch() -> None:
-    """Use only dashboard_webhook_api for persistent dashboard requests."""
+    """Use only dashboard_webhook_api for persistent dashboard requests.
+
+    An empty dashboard_webhook_api disables Discord dashboard publishing while
+    leaving the normal event webhook and local dashboard state untouched.
+    """
     state_class = dashboard.DashboardState
     current = state_class._discord
     if getattr(current, _PATCH_MARKER, False):
