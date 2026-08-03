@@ -29,6 +29,7 @@ The default value of `dashboard_webhook_api` is an empty string. When it is empt
 
 The dashboard contains:
 
+- the active miner version and dashboard renderer identity;
 - current miner state and priority order;
 - the two active watch slots, their selection reasons, source, and current Channel Points balance;
 - the Drop campaign and Drop currently being farmed;
@@ -38,6 +39,20 @@ The dashboard contains:
 - the latest Channel Points event;
 - the latest non-points event;
 - the five most recently retained Drop claims.
+
+A current dashboard begins with an identity line similar to:
+
+```text
+Version: 2.2.2 · renderer: enhanced
+```
+
+The application log also reports:
+
+```text
+Discord dashboard renderer active: version 2.2.2, renderer enhanced
+```
+
+When `renderer: legacy` appears, the enhanced dashboard patch was not loaded. When the version line is missing entirely, the running container predates version `2.2.2`.
 
 `Last points event` is updated only by Channel Points gains such as watch, claim, raid, and Watch Streak rewards. `Last non-points event` is updated by the remaining event types, including watch-target changes, online/offline changes, Drop status, claims, prediction events, and chat mentions.
 
@@ -64,6 +79,23 @@ Temporary Discord failures such as HTTP `503` are logged without a traceback. Da
 
 Treat every Discord webhook URL as a secret. If a complete URL appears in a terminal, log file, issue, or chat message, delete or rotate that webhook in Discord before using it again.
 
+## Container updates
+
+The GHCR `latest`, `master`, and `edge` tags are updated by successful builds from `master`. After a dashboard change is merged, wait for the container workflow to finish and recreate the container rather than only restarting the existing image:
+
+```bash
+docker compose pull
+docker compose up -d --force-recreate
+```
+
+To force Compose to check the registry during startup:
+
+```bash
+docker compose up -d --pull always --force-recreate
+```
+
+The version and renderer lines in Discord confirm which code is running. Docker may keep an older local image when the registry build has not completed yet, so repeat the pull after the workflow finishes if the identity line is still missing.
+
 ## Persistence and recovery
 
 The message ID and compact recent activity state are stored next to the account cookie:
@@ -74,7 +106,7 @@ cookies/<account>.discord-dashboard.json
 
 Only a SHA-256 fingerprint of the dashboard webhook URL is persisted. The webhook secret itself is not written to the dashboard state file.
 
-The retained state now stores `last_points_event` and `last_non_points_event` separately. Existing `last_event` values are migrated when they contain a non-points event.
+The retained state stores `last_points_event` and `last_non_points_event` separately. Existing `last_event` values are migrated when they contain a non-points event.
 
 If the stored Discord message was deleted or belongs to a different dashboard webhook, the miner creates a replacement and stores its new message ID. The next changed dashboard state detects a deleted stored message and recreates it.
 
