@@ -58,6 +58,8 @@ When `renderer: legacy` appears, the enhanced dashboard patch was not loaded. Wh
 
 A Drop is marked with `explicit game farming: yes` when its campaign game matches one of the names passed through `drop_games`. Campaigns discovered through another eligible source remain visible but are marked `no`.
 
+New Drop claim events retain the game association discovered from campaign details or the Twitch inventory. The same `Game` line is used by the normal Discord event message and by `Recent Drop claims` in the persistent dashboard. Claim entries saved before version `2.2.2` may remain without a game because their persisted event text did not contain enough information for a reliable retroactive association.
+
 All displayed times use Discord timestamps. Before the dashboard starts, the miner measures the dashboard webhook's Discord HTTP server clock and applies that offset to locally-created timestamps such as startup, inventory sync, points events, and claims. This prevents a skewed container clock from rendering those events in the future. Twitch-provided campaign end times remain unchanged.
 
 The former separate `Miner started` notification has been removed. The miner no longer creates that startup notification or Discord message; startup state is represented only by the persistent dashboard and normal application logs.
