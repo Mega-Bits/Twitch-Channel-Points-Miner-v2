@@ -5,6 +5,7 @@ __version__ = _Path(__file__).with_name("VERSION").read_text(encoding="utf-8").s
 del _Path
 
 from .channel_points_context_patch import apply_patch as _apply_channel_points_context_patch
+from .configured_drop_game_priority_patch import apply_patch as _apply_configured_drop_game_priority_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
 from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
@@ -30,6 +31,7 @@ _apply_watch_streak_persistence_patch()
 _apply_drop_games_patch()
 _apply_drop_game_main_list_preference_patch()
 _apply_finish_started_drops_patch()
+_apply_configured_drop_game_priority_patch()
 _apply_watch_notifications_patch()
 _apply_status_dashboard_patch()
 _apply_status_dashboard_webhook_patch()
@@ -38,6 +40,7 @@ _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
 del _apply_channel_points_context_patch
+del _apply_configured_drop_game_priority_patch
 del _apply_discord_format_patch
 del _apply_drop_claim_game_patch
 del _apply_drop_game_main_list_preference_patch
