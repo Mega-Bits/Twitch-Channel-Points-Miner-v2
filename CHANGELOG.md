@@ -2,6 +2,14 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.2.1
+
+### Fixed
+
+- Discord dashboard failures no longer print credential-bearing webhook URLs or tracebacks.
+- Dashboard retry warnings now report only a sanitized failure reason such as `HTTP 503`, `request timed out`, or `connection error`.
+- The existing exponential retry behavior remains active for temporary Discord and network failures.
+
 ## 2.2.0
 
 ### Added
