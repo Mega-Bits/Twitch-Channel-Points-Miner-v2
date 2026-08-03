@@ -4,32 +4,17 @@ import logging
 from threading import Lock
 
 from TwitchChannelPointsMiner.classes.Discord import Discord
-from TwitchChannelPointsMiner.classes.Settings import Events, Settings
+from TwitchChannelPointsMiner.classes.Settings import Events
 from TwitchChannelPointsMiner.classes.Twitch import Twitch
 
 logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_watch_notifications_patch"
 _STATE_LOCK = Lock()
 _WATCHING = {}
-_NOTIFICATION_EVENTS = (
-    Events.START_WATCHING,
-    Events.STOP_WATCHING,
-)
 
 
 def _channel(username):
     return f"[{username}](https://twitch.tv/{username})"
-
-
-def _enable_discord_events():
-    logger_settings = getattr(Settings, "logger", None)
-    discord = getattr(logger_settings, "discord", None) if logger_settings else None
-    if discord is None or not hasattr(discord, "events"):
-        return
-    for event in _NOTIFICATION_EVENTS:
-        event_name = str(event)
-        if event_name not in discord.events:
-            discord.events.append(event_name)
 
 
 def _drop_details(twitch, streamer):
@@ -145,7 +130,6 @@ def apply_patch():
     send = Twitch.send_minute_watched_events
     if not getattr(send, _PATCH_MARKER, False):
         def send_with_notifications(self, streamers, priority, chunk_size=3):
-            _enable_discord_events()
             try:
                 return send(self, streamers, priority, chunk_size)
             finally:
