@@ -46,7 +46,7 @@ def _failure_reason(exc: BaseException | None) -> str:
 
 
 class _SecretRedactionFilter(logging.Filter):
-    """Redact webhook URLs and suppress credential-bearing tracebacks."""
+    """Redact webhook URLs and suppress credential-bearing publish tracebacks."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
@@ -54,21 +54,22 @@ class _SecretRedactionFilter(logging.Filter):
         except Exception:
             rendered = str(record.msg)
 
-        reason = None
-        if record.exc_info:
-            reason = _failure_reason(record.exc_info[1])
-
         redacted = _redact(rendered)
-        if reason and "Unable to update Discord status dashboard" in redacted:
-            redacted = f"{redacted}: {reason}"
+        publish_failure = (
+            "Unable to update Discord status dashboard" in redacted
+            or "Discord dashboard update failed" in redacted
+        )
+        contains_secret = redacted != rendered
 
-        if redacted != rendered or reason:
+        if publish_failure and record.exc_info:
+            redacted = f"{redacted}: {_failure_reason(record.exc_info[1])}"
+
+        if contains_secret or publish_failure:
             record.msg = redacted
             record.args = ()
-
-        if record.exc_info:
-            record.exc_info = None
-            record.exc_text = None
+            if record.exc_info:
+                record.exc_info = None
+                record.exc_text = None
         return True
 
 
