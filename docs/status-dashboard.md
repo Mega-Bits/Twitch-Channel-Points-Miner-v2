@@ -60,6 +60,10 @@ Dashboard updates are coalesced before being sent to Discord:
 
 Inventory sync normally changes the dashboard roughly once per minute, while faster event bursts are combined into the next safe update.
 
+Temporary Discord failures such as HTTP `503` are logged without a traceback. Dashboard logs never include the webhook ID, token, message ID, or query string. A warning contains only a sanitized reason such as `HTTP 503`, `request timed out`, or `connection error`, together with the next retry delay.
+
+Treat every Discord webhook URL as a secret. If a complete URL appears in a terminal, log file, issue, or chat message, delete or rotate that webhook in Discord before using it again.
+
 ## Persistence and recovery
 
 The message ID and compact recent activity state are stored next to the account cookie:
