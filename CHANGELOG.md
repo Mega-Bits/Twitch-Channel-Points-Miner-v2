@@ -2,6 +2,22 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.2.2
+
+### Added
+
+- The Discord dashboard now shows the active miner version and renderer identity.
+- Dashboard startup logs report the active version and whether the enhanced renderer is loaded.
+
+### Changed
+
+- GHCR `latest` is updated on every successful `master` build together with `master` and `edge`.
+- Stable SemVer, major, and minor image tags still require a matching Git release tag.
+
+### Fixed
+
+- Pulling `latest` after a merged dashboard change no longer leaves users on an older tagged image indefinitely.
+
 ## 2.2.1
 
 ### Fixed
