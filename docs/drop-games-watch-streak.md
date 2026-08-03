@@ -40,6 +40,8 @@ twitch_miner.mine(
 
 For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for that campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
+An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. While the configured campaign is being farmed, other Drop-enabled streams are excluded from the second slot because Twitch can advance only one time-based Drop campaign at a time.
+
 At every inventory sync the miner:
 
 1. refreshes game and Drop eligibility for configured streamers;
@@ -57,6 +59,8 @@ Game-directory channels:
 - never override an eligible configured-list streamer.
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
+
+For example, with `drop_games=["Rust"]`, a Dead by Daylight or Overwatch Drop found on a normal list streamer no longer blocks a qualifying Rust streamer. The miner chooses a main-list Rust streamer when available and otherwise uses a Rust directory candidate.
 
 ## Finish already-started unmonitored Drops
 
