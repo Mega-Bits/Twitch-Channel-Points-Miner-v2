@@ -13,6 +13,20 @@ Events can be selected independently for Discord, Telegram, Matrix, Gotify, Push
 | `Events.STREAMER_ONLINE` | A configured streamer is detected online. |
 | `Events.STREAMER_OFFLINE` | A configured streamer is detected offline. |
 
+Watch-selection events follow the same opt-in filtering as every other notification. They are emitted internally so the dashboard and other configured integrations can observe state changes, but the Discord event webhook receives them only when they are explicitly included in `Discord(events=[...])`.
+
+For example, this configuration sends start notifications but not stop notifications:
+
+```python
+discord=Discord(
+    webhook_api="https://discord.com/api/webhooks/EVENTS/WEBHOOK",
+    dashboard_webhook_api="https://discord.com/api/webhooks/DASHBOARD/WEBHOOK",
+    events=[Events.START_WATCHING],
+)
+```
+
+An empty Discord `events` list disables all normal Discord event messages while leaving the separately configured persistent dashboard active.
+
 ### Channel Points
 
 | Event | Meaning |
