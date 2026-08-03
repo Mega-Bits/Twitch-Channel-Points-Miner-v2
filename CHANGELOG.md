@@ -14,6 +14,13 @@ All notable changes to the Mega-Bits fork are documented here.
 
 - Started unmonitored campaigns are ordered by current progress and use the existing single-campaign Drop lock.
 - Temporarily resumed games remain separate from the explicit `drop_games` configuration and continue to display `explicit game farming: no` in the Discord dashboard.
+- A campaign selected through `drop_games` now reserves the dedicated Drop slot before unrelated Drops found on normal priority streamers.
+
+### Fixed
+
+- An unrelated Drop-enabled streamer from the configured list no longer suppresses the directory fallback for an explicitly configured game such as `Rust`.
+- The second watch slot excludes other Drop-enabled streams while a configured game campaign is being farmed, preventing them from stealing Drop progress.
+- Main-list streamers eligible for the selected configured campaign remain preferred over campaign and game-directory fallbacks.
 
 ### Safety
 
