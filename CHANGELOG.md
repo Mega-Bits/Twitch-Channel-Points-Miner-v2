@@ -2,6 +2,24 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.2.2
+
+### Added
+
+- The Discord dashboard now shows the active miner version and renderer identity.
+- Dashboard startup logs report the active version and whether the enhanced renderer is loaded.
+- New Drop claim events and retained dashboard claim entries include the campaign game when Twitch exposes a matching campaign or inventory association.
+
+### Changed
+
+- GHCR `latest` is updated on every successful `master` build together with `master` and `edge`.
+- Stable SemVer, major, and minor image tags still require a matching Git release tag.
+
+### Fixed
+
+- Pulling `latest` after a merged dashboard change no longer leaves users on an older tagged image indefinitely.
+- The game is no longer limited to active and queued Drop rows; it is also attached to newly captured Drop claims.
+
 ## 2.2.1
 
 ### Fixed

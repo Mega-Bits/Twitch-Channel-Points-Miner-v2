@@ -6,6 +6,7 @@ del _Path
 
 from .channel_points_context_patch import apply_patch as _apply_channel_points_context_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
+from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
 from .fork_branding_patch import apply_patch as _apply_fork_branding_patch
@@ -15,12 +16,14 @@ from .status_dashboard_webhook_patch import apply_patch as _apply_status_dashboa
 from .status_dashboard_enhancements_patch import apply_patch as _apply_status_dashboard_enhancements_patch
 from .status_dashboard_clock_patch import apply_patch as _apply_status_dashboard_clock_patch
 from .status_dashboard_error_safety_patch import apply_patch as _apply_status_dashboard_error_safety_patch
+from .status_dashboard_identity_patch import apply_patch as _apply_status_dashboard_identity_patch
 from .watch_notifications_patch import apply_patch as _apply_watch_notifications_patch
 from .watch_streak_persistence_patch import apply_patch as _apply_watch_streak_persistence_patch
 
 _apply_fork_branding_patch()
 _apply_channel_points_context_patch()
 _apply_discord_format_patch()
+_apply_drop_claim_game_patch()
 _apply_playback_access_token_patch()
 _apply_watch_streak_persistence_patch()
 _apply_drop_games_patch()
@@ -31,8 +34,10 @@ _apply_status_dashboard_webhook_patch()
 _apply_status_dashboard_enhancements_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
+_apply_status_dashboard_identity_patch()
 del _apply_channel_points_context_patch
 del _apply_discord_format_patch
+del _apply_drop_claim_game_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
 del _apply_fork_branding_patch
@@ -40,6 +45,7 @@ del _apply_playback_access_token_patch
 del _apply_status_dashboard_clock_patch
 del _apply_status_dashboard_enhancements_patch
 del _apply_status_dashboard_error_safety_patch
+del _apply_status_dashboard_identity_patch
 del _apply_status_dashboard_patch
 del _apply_status_dashboard_webhook_patch
 del _apply_watch_notifications_patch
