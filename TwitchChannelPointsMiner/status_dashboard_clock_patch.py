@@ -142,6 +142,10 @@ def apply_patch() -> None:
                 snapshot.get("last_points_event"),
                 offset,
             )
+            snapshot["last_non_points_event"] = _correct_event(
+                snapshot.get("last_non_points_event"),
+                offset,
+            )
             snapshot["last_event"] = _correct_event(
                 snapshot.get("last_event"),
                 offset,
