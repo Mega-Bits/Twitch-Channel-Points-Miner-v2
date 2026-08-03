@@ -2,6 +2,23 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.2.0
+
+### Added
+
+- Current Channel Points for every streamer shown under `Currently watching`.
+- The game name on each tracked Drop.
+- An explicit indicator showing whether the Drop game is configured in `drop_games`.
+- A dedicated `Last non-points event` dashboard field.
+
+### Changed
+
+- Discord dashboard writes are coalesced and limited to one request per 15 seconds.
+- Identical dashboard payloads are no longer sent repeatedly.
+- Discord `429` responses now honor `Retry-After` before another request is attempted.
+- Network and Discord server failures use exponential retry backoff up to five minutes.
+- The previous generic `Last event` field now tracks only non-points events, while points events remain in `Last points event`.
+
 ## 2.1.0
 
 ### Added
