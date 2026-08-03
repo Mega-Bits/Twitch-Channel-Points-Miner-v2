@@ -2,6 +2,14 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.2.3
+
+### Fixed
+
+- `Events.START_WATCHING` and `Events.STOP_WATCHING` no longer add themselves to the configured Discord event list.
+- Watch-selection events are sent to the Discord event webhook only when they are explicitly present in `Discord(events=[...])`.
+- Omitting either watch event now reliably disables that notification without affecting the persistent dashboard or other integrations.
+
 ## 2.2.2
 
 ### Added
