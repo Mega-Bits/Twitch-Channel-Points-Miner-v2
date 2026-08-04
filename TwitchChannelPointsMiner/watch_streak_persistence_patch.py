@@ -5,19 +5,25 @@ import logging
 import os
 import time
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Timer
 
 from TwitchChannelPointsMiner.classes.Twitch import Twitch
+from TwitchChannelPointsMiner.classes.WebSocketsPool import WebSocketsPool
+from TwitchChannelPointsMiner.classes.entities.Message import Message
 from TwitchChannelPointsMiner.classes.entities.Stream import Stream
 from TwitchChannelPointsMiner.classes.entities.Streamer import Streamer
+from TwitchChannelPointsMiner.utils import get_streamer_index
 
 logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_persistent_watch_streak_patch"
 _STATE_LOCK = Lock()
+_LIVE_REFRESH_LOCK = Lock()
 _STATE_CACHE = None
 _STREAMERS = {}
 _STREAMS = {}
+_LIVE_REFRESH_TIMERS = {}
 _MAX_AGE_SECONDS = 45 * 24 * 60 * 60
+_LIVE_REFRESH_DELAYS = (30, 75)
 
 
 def _state_path():
@@ -142,10 +148,56 @@ def _persist_streamer(twitch, streamer):
     _save_state()
 
 
+def _refresh_live_stream(twitch, streamer, key):
+    try:
+        twitch.check_streamer_online(streamer)
+    except Exception as exc:
+        logger.debug(
+            "Unable to refresh %s after stream-up: %s",
+            streamer.username,
+            exc,
+        )
+    finally:
+        with _LIVE_REFRESH_LOCK:
+            _LIVE_REFRESH_TIMERS.pop(key, None)
+
+
+def _schedule_live_refresh(twitch, streamer):
+    for delay in _LIVE_REFRESH_DELAYS:
+        key = (id(twitch), streamer.username, delay)
+        with _LIVE_REFRESH_LOCK:
+            previous = _LIVE_REFRESH_TIMERS.pop(key, None)
+            if previous is not None:
+                previous.cancel()
+            timer = Timer(
+                delay,
+                _refresh_live_stream,
+                args=(twitch, streamer, key),
+            )
+            timer.daemon = True
+            _LIVE_REFRESH_TIMERS[key] = timer
+            timer.start()
+
+
+def _stream_up_streamer(ws, raw_message):
+    try:
+        response = json.loads(raw_message)
+        if response.get("type") != "MESSAGE":
+            return None
+        message = Message(response["data"])
+        if message.topic != "video-playback-by-id" or message.type != "stream-up":
+            return None
+        index = get_streamer_index(ws.streamers, message.channel_id)
+        return ws.streamers[index] if index != -1 else None
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
 def apply_patch():
-    """Install persistence hooks once."""
+    """Install persistence and live-transition hooks once."""
     check_online = Twitch.check_streamer_online
     if not getattr(check_online, _PATCH_MARKER, False):
+
         def check_online_with_restore(self, streamer):
             result = check_online(self, streamer)
             if streamer.is_online is True:
@@ -155,9 +207,59 @@ def apply_patch():
         setattr(check_online_with_restore, _PATCH_MARKER, True)
         Twitch.check_streamer_online = check_online_with_restore
 
+    update_stream = Stream.update
+    if not getattr(update_stream, _PATCH_MARKER, False):
+
+        def update_with_broadcast_reset(
+            self,
+            broadcast_id,
+            title,
+            game,
+            tags,
+            viewers_count,
+        ):
+            previous_broadcast = getattr(self, "broadcast_id", None)
+            result = update_stream(
+                self,
+                broadcast_id,
+                title,
+                game,
+                tags,
+                viewers_count,
+            )
+            if (
+                previous_broadcast not in (None, "")
+                and broadcast_id not in (None, "")
+                and str(previous_broadcast) != str(broadcast_id)
+            ):
+                self.init_watch_streak()
+            return result
+
+        setattr(update_with_broadcast_reset, _PATCH_MARKER, True)
+        Stream.update = update_with_broadcast_reset
+
+    on_message = WebSocketsPool.on_message
+    if not getattr(on_message, _PATCH_MARKER, False):
+
+        def on_message_with_live_refresh(ws, message):
+            result = on_message(ws, message)
+            streamer = _stream_up_streamer(ws, message)
+            if streamer is not None:
+                _schedule_live_refresh(ws.twitch, streamer)
+            return result
+
+        setattr(on_message_with_live_refresh, _PATCH_MARKER, True)
+        WebSocketsPool.on_message = staticmethod(on_message_with_live_refresh)
+
     update_history = Streamer.update_history
     if not getattr(update_history, _PATCH_MARKER, False):
-        def update_history_with_persistence(self, reason_code, earned, counter=1):
+
+        def update_history_with_persistence(
+            self,
+            reason_code,
+            earned,
+            counter=1,
+        ):
             result = update_history(self, reason_code, earned, counter)
             registration = _STREAMERS.get(id(self))
             if registration is not None and reason_code == "WATCH_STREAK":
@@ -170,6 +272,7 @@ def apply_patch():
 
     update_minute = Stream.update_minute_watched
     if not getattr(update_minute, _PATCH_MARKER, False):
+
         def update_minute_with_persistence(self):
             result = update_minute(self)
             registration = _STREAMS.get(id(self))
