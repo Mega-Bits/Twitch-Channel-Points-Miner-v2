@@ -2,6 +2,14 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.3
+
+### Fixed
+
+- Streamer online and offline events are now emitted only when `is_online` actually changes.
+- Periodic Watch Streak polling, inventory refreshes, game-Drop refreshes, and PubSub rechecks no longer repeat identical online/offline log lines or notifications.
+- The initial check of an already-offline channel stays silent; a real `offline -> online` or `online -> offline` transition still logs and uses the configured notification integrations.
+
 ## 2.3.2
 
 ### Fixed
