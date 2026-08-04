@@ -2,6 +2,19 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.1
+
+### Fixed
+
+- Offline-marked configured Watch Streak channels are now polled every two minutes, so a missed Twitch PubSub event no longer leaves an already-online streak candidate undiscovered until restart.
+- A `stream-up` PubSub event remains a faster path and schedules fresh channel checks after invalidating cached stream data.
+- A changed Twitch broadcast ID resets and reloads the per-broadcast Watch Streak state instead of retaining the completed state from the previous broadcast.
+- The configured-game Drop selector now uses Twitch's channel campaign IDs immediately instead of waiting for the next full campaign-object assignment.
+- Valid game-directory and campaign fallback channels can therefore enter the Drop slot as soon as Twitch confirms eligibility for the selected campaign.
+- The normal slot preserves a pending Watch Streak even when that channel also advertises a different Drop; after the streak is complete, unrelated Drop-eligible channels remain excluded.
+- Started inventory campaigns missing from `ViewerDropsDashboard` are recovered through their campaign details and fed into the normal campaign lock, fallback discovery, progress, and claim paths.
+- Inventory campaign and Drop active windows are evaluated against UTC, preventing local container time zones from hiding still-active campaigns early.
+
 ## 2.3.0
 
 ### Added

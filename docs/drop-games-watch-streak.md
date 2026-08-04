@@ -10,6 +10,10 @@ cookies/watch_streak_state.json
 
 Restarting the container during the same broadcast no longer resets the miner's local Watch Streak state. Entries older than 45 days are removed automatically.
 
+The miner no longer relies only on Twitch PubSub to discover Watch Streak candidates. Configured channels with `watch_streak=True` that are currently marked offline are checked through a lightweight live-status request every two minutes. Checks are staggered across the configured list to avoid a burst of Twitch requests. When a live channel is found, its full stream state is refreshed and it becomes eligible for the next `Priority.STREAK` selection cycle without restarting the miner.
+
+A Twitch `stream-up` notification remains the faster path and schedules fresh channel checks after 30 and 75 seconds. This gives Twitch time to expose the new broadcast through its API. When the broadcast ID changes, the local per-broadcast minutes and completion flag are reset before the matching persisted state is restored.
+
 This persistence does not change Twitch's server-side Watch Streak rules. Twitch may allow a missed streak of 3 or more broadcasts to be recovered within 24 hours by watching eligible Clips, Stories, VODs, or a later live stream. Only content marked by Twitch as eligible counts; automatic Clip recovery is not implemented by this patch.
 
 Useful notification events:
@@ -38,9 +42,11 @@ twitch_miner.mine(
 )
 ```
 
-For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for that campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
+For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for the campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
-An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. While the configured campaign is being farmed, other Drop-enabled streams are excluded from the second slot because Twitch can advance only one time-based Drop campaign at a time.
+An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid game-directory channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
+
+The second slot normally excludes unrelated Drop-eligible streams because Twitch can advance only one time-based Drop campaign at a time. A pending Watch Streak remains an exception: it may occupy the normal slot until its local streak requirement is complete, even when that channel also advertises another Drop.
 
 At every inventory sync the miner:
 
@@ -82,6 +88,8 @@ The option defaults to `False`. When enabled, the miner temporarily adds only qu
 - its start time has passed;
 - its campaign end time has not passed;
 - its game is not already explicitly covered by `drop_games`.
+
+Started inventory campaigns are recovered even when Twitch omits them from the separate `ViewerDropsDashboard` campaign catalog. The miner loads their campaign details by ID, synchronizes their inventory progress, and then feeds them through the same campaign lock, streamer preference, game-directory fallback, dashboard, and claim paths. Active campaign and Drop windows are evaluated against UTC rather than the container's local time zone.
 
 Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. The miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
 
