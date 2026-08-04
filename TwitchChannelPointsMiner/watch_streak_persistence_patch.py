@@ -150,6 +150,12 @@ def _persist_streamer(twitch, streamer):
 
 def _refresh_live_stream(twitch, streamer, key):
     try:
+        stream = getattr(streamer, "stream", None)
+        if stream is not None:
+            try:
+                setattr(stream, "_Stream__last_update", 0)
+            except AttributeError:
+                pass
         twitch.check_streamer_online(streamer)
     except Exception as exc:
         logger.debug(
