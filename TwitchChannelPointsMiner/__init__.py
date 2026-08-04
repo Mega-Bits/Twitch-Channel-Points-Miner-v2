@@ -22,6 +22,7 @@ from .status_dashboard_drop_reason_patch import apply_patch as _apply_status_das
 from .status_dashboard_clock_patch import apply_patch as _apply_status_dashboard_clock_patch
 from .status_dashboard_error_safety_patch import apply_patch as _apply_status_dashboard_error_safety_patch
 from .status_dashboard_identity_patch import apply_patch as _apply_status_dashboard_identity_patch
+from .stream_state_transition_patch import apply_patch as _apply_stream_state_transition_patch
 from .watch_notifications_patch import apply_patch as _apply_watch_notifications_patch
 from .watch_streak_persistence_patch import apply_patch as _apply_watch_streak_persistence_patch
 
@@ -30,6 +31,7 @@ _apply_channel_points_context_patch()
 _apply_discord_format_patch()
 _apply_drop_claim_game_patch()
 _apply_playback_access_token_patch()
+_apply_stream_state_transition_patch()
 _apply_watch_streak_persistence_patch()
 _apply_inventory_campaign_recovery_patch()
 _apply_drop_games_patch()
@@ -63,6 +65,7 @@ del _apply_status_dashboard_error_safety_patch
 del _apply_status_dashboard_identity_patch
 del _apply_status_dashboard_patch
 del _apply_status_dashboard_webhook_patch
+del _apply_stream_state_transition_patch
 del _apply_watch_notifications_patch
 del _apply_watch_streak_persistence_patch
 
