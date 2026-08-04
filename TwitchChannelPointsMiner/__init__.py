@@ -10,6 +10,7 @@ from .discord_format_patch import apply_patch as _apply_discord_format_patch
 from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
+from .drop_priority_order_patch import apply_patch as _apply_drop_priority_order_patch
 from .finish_started_drops_patch import apply_patch as _apply_finish_started_drops_patch
 from .fork_branding_patch import apply_patch as _apply_fork_branding_patch
 from .inventory_campaign_recovery_patch import apply_patch as _apply_inventory_campaign_recovery_patch
@@ -17,6 +18,7 @@ from .playback_access_token_patch import apply_patch as _apply_playback_access_t
 from .status_dashboard_patch import apply_patch as _apply_status_dashboard_patch
 from .status_dashboard_webhook_patch import apply_patch as _apply_status_dashboard_webhook_patch
 from .status_dashboard_enhancements_patch import apply_patch as _apply_status_dashboard_enhancements_patch
+from .status_dashboard_drop_reason_patch import apply_patch as _apply_status_dashboard_drop_reason_patch
 from .status_dashboard_clock_patch import apply_patch as _apply_status_dashboard_clock_patch
 from .status_dashboard_error_safety_patch import apply_patch as _apply_status_dashboard_error_safety_patch
 from .status_dashboard_identity_patch import apply_patch as _apply_status_dashboard_identity_patch
@@ -34,10 +36,12 @@ _apply_drop_games_patch()
 _apply_drop_game_main_list_preference_patch()
 _apply_finish_started_drops_patch()
 _apply_configured_drop_game_priority_patch()
+_apply_drop_priority_order_patch()
 _apply_watch_notifications_patch()
 _apply_status_dashboard_patch()
 _apply_status_dashboard_webhook_patch()
 _apply_status_dashboard_enhancements_patch()
+_apply_status_dashboard_drop_reason_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
@@ -47,11 +51,13 @@ del _apply_discord_format_patch
 del _apply_drop_claim_game_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
+del _apply_drop_priority_order_patch
 del _apply_finish_started_drops_patch
 del _apply_fork_branding_patch
 del _apply_inventory_campaign_recovery_patch
 del _apply_playback_access_token_patch
 del _apply_status_dashboard_clock_patch
+del _apply_status_dashboard_drop_reason_patch
 del _apply_status_dashboard_enhancements_patch
 del _apply_status_dashboard_error_safety_patch
 del _apply_status_dashboard_identity_patch
