@@ -149,18 +149,22 @@ def _log_explicit_game_failure(
     streamers: list[Any],
     config: dict[str, Any],
 ) -> None:
+    games = _explicit_game_names(twitch)
+    if not games:
+        config.pop("explicit_drop_diagnostic", None)
+        return
+
     campaigns = config.get("campaigns_by_id", {}) or {}
     explicit_ids, _ = priority_order._explicit_first_campaigns(twitch, config)
 
     if not explicit_ids:
-        games = _explicit_game_names(twitch)
         signature = ("no-campaign", games)
         if config.get("explicit_drop_diagnostic") == signature:
             return
         config["explicit_drop_diagnostic"] = signature
         logger.info(
             "No active open Drop campaign matched explicit drop_games [%s]; started Drop completion remains fallback",
-            ", ".join(games) or "none",
+            ", ".join(games),
         )
         return
 
