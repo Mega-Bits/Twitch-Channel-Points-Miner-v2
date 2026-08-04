@@ -2,6 +2,16 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.2
+
+### Fixed
+
+- Explicit games from `drop_games` now take precedence over already-started campaigns included through `finish_started_drops`.
+- A qualifying configured-game channel such as a Rust directory candidate owns the dedicated Drop slot before any unmonitored Drop-completion candidate.
+- The normal second slot is recalculated directly from the configured streamer list and priority settings instead of inheriting a previously filtered Drop selection.
+- `Priority.ORDER` therefore selects the first eligible online configured streamer after excluding only the streamer already occupying the Drop slot.
+- The Discord dashboard and watch notifications now identify `Game drop` and `Drop completion` instead of incorrectly labeling those selections as `Priority`.
+
 ## 2.3.1
 
 ### Fixed
