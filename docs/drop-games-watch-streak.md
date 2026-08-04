@@ -46,7 +46,13 @@ For matching active Drop campaigns, the miner checks the configured streamer lis
 
 An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid game-directory channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
 
-The second slot normally excludes unrelated Drop-eligible streams because Twitch can advance only one time-based Drop campaign at a time. A pending Watch Streak remains an exception: it may occupy the normal slot until its local streak requirement is complete, even when that channel also advertises another Drop.
+The final two-slot order is deterministic:
+
+1. an eligible campaign from `drop_games`;
+2. when no configured-game campaign has an eligible live channel, an already-started unmonitored campaign enabled through `finish_started_drops`;
+3. the remaining slot follows the configured normal priority list.
+
+The normal slot is recalculated directly from the original configured streamer list. With `Priority.ORDER`, it therefore uses the first eligible online configured streamer after excluding only the streamer already occupying the Drop slot. `Priority.STREAK`, point-balance priorities, and `Priority.SUBSCRIBED` retain their normal ordering rules. `Priority.DROPS` is skipped for the second slot because Drop selection is already handled by the dedicated first slot.
 
 At every inventory sync the miner:
 
@@ -66,7 +72,7 @@ Game-directory channels:
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
 
-For example, with `drop_games=["Rust"]`, a Dead by Daylight or Overwatch Drop found on a normal list streamer no longer blocks a qualifying Rust streamer. The miner chooses a main-list Rust streamer when available and otherwise uses a Rust directory candidate.
+For example, with `drop_games=["Rust"]`, a Dead by Daylight or Overwatch Drop found on a normal list streamer no longer blocks a qualifying Rust streamer. The miner chooses a main-list Rust streamer when available and otherwise uses a Rust directory candidate. A started campaign from another game is considered only when no eligible Rust candidate is currently available.
 
 ## Finish already-started unmonitored Drops
 
@@ -91,9 +97,9 @@ The option defaults to `False`. When enabled, the miner temporarily adds only qu
 
 Started inventory campaigns are recovered even when Twitch omits them from the separate `ViewerDropsDashboard` campaign catalog. The miner loads their campaign details by ID, synchronizes their inventory progress, and then feeds them through the same campaign lock, streamer preference, game-directory fallback, dashboard, and claim paths. Active campaign and Drop windows are evaluated against UTC rather than the container's local time zone.
 
-Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. The miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
+Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. They remain lower priority than any explicitly configured game that currently has an eligible live channel. Within a completion campaign, the miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
 
-The temporary game is not added permanently to `drop_games`. In the Discord dashboard it remains marked as `explicit game farming: no`, which distinguishes an inventory-resume campaign from a game explicitly configured by the user.
+The temporary game is not added permanently to `drop_games`. In the Discord dashboard it remains marked as `explicit game farming: no`, which distinguishes an inventory-resume campaign from a game explicitly configured by the user. The `Currently watching` reason is shown as `Game drop` for explicit games and `Drop completion` for resumed inventory campaigns.
 
 Untouched campaigns outside `drop_games` are not started by this option, and expired campaigns are ignored. Once the inventory campaign is complete or disappears from Twitch's active inventory, its temporary game-directory candidates and campaign lock are removed.
 
