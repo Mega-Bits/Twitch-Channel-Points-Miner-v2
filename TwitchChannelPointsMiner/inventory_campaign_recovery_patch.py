@@ -6,6 +6,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from TwitchChannelPointsMiner import drop_games_patch
+from TwitchChannelPointsMiner import finish_started_drops_patch
 from TwitchChannelPointsMiner.classes.Twitch import Twitch
 from TwitchChannelPointsMiner.classes.entities.Campaign import Campaign
 
@@ -34,6 +36,27 @@ def _fix_active_windows(campaign: Campaign) -> None:
     campaign.dt_match = _utc_active(campaign.start_at, campaign.end_at)
     for drop in campaign.drops:
         drop.dt_match = _utc_active(drop.start_at, drop.end_at)
+
+
+def _game_name(campaign: Campaign) -> str:
+    game = campaign.game or {}
+    if isinstance(game, dict):
+        return str(game.get("displayName") or game.get("name") or "")
+    return str(game or "")
+
+
+def _recovery_allowed(twitch: Twitch, campaign: Campaign) -> bool:
+    config = finish_started_drops_patch._RUN_CONFIG.get(id(twitch))
+    if config is None:
+        return True
+    if config.get("enabled") is True:
+        return True
+    explicit = {
+        drop_games_patch._normalize(game)
+        for game in config.get("explicit_games", ())
+    }
+    game = _game_name(campaign)
+    return bool(game) and drop_games_patch._normalize(game) in explicit
 
 
 def _fallback_details(progress: dict[str, Any]) -> dict[str, Any] | None:
@@ -194,23 +217,15 @@ def apply_patch() -> None:
             if campaign_details is None:
                 continue
             campaign = _recover_campaign(self, campaign_details, progress)
-            if campaign is None:
+            if campaign is None or not _recovery_allowed(self, campaign):
                 continue
             synced.append(campaign)
             key = (id(self), campaign_id)
             if key not in _LOGGED_RECOVERIES:
-                game = campaign.game or {}
-                game_name = (
-                    game.get("displayName")
-                    or game.get("name")
-                    or "unknown game"
-                    if isinstance(game, dict)
-                    else str(game)
-                )
                 logger.info(
                     "Recovered started Drop campaign %s (%s) directly from inventory",
                     campaign.name,
-                    game_name,
+                    _game_name(campaign) or "unknown game",
                 )
                 _LOGGED_RECOVERIES.add(key)
         return synced
