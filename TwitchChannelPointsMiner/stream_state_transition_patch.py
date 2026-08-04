@@ -12,6 +12,7 @@ def apply_patch() -> None:
 
         def set_online_on_transition(self):
             if self.is_online is True:
+                self.toggle_chat()
                 return None
             return set_online(self)
 
@@ -23,6 +24,7 @@ def apply_patch() -> None:
 
         def set_offline_on_transition(self):
             if self.is_online is not True:
+                self.toggle_chat()
                 return None
             return set_offline(self)
 
