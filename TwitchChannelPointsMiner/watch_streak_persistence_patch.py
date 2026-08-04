@@ -5,8 +5,9 @@ import logging
 import os
 import time
 from pathlib import Path
-from threading import Lock, Timer
+from threading import Lock, Thread, Timer
 
+from TwitchChannelPointsMiner.classes.Exceptions import StreamerIsOfflineException
 from TwitchChannelPointsMiner.classes.Twitch import Twitch
 from TwitchChannelPointsMiner.classes.WebSocketsPool import WebSocketsPool
 from TwitchChannelPointsMiner.classes.entities.Message import Message
@@ -22,8 +23,11 @@ _STATE_CACHE = None
 _STREAMERS = {}
 _STREAMS = {}
 _LIVE_REFRESH_TIMERS = {}
+_OFFLINE_POLL_THREADS = {}
 _MAX_AGE_SECONDS = 45 * 24 * 60 * 60
 _LIVE_REFRESH_DELAYS = (30, 75)
+_OFFLINE_POLL_INTERVAL_SECONDS = 120
+_OFFLINE_POLL_STAGGER_SECONDS = 1
 
 
 def _state_path():
@@ -148,14 +152,19 @@ def _persist_streamer(twitch, streamer):
     _save_state()
 
 
+def _invalidate_stream_cache(streamer):
+    stream = getattr(streamer, "stream", None)
+    if stream is None:
+        return
+    try:
+        setattr(stream, "_Stream__last_update", 0)
+    except AttributeError:
+        pass
+
+
 def _refresh_live_stream(twitch, streamer, key):
     try:
-        stream = getattr(streamer, "stream", None)
-        if stream is not None:
-            try:
-                setattr(stream, "_Stream__last_update", 0)
-            except AttributeError:
-                pass
+        _invalidate_stream_cache(streamer)
         twitch.check_streamer_online(streamer)
     except Exception as exc:
         logger.debug(
@@ -197,6 +206,101 @@ def _stream_up_streamer(ws, raw_message):
         return ws.streamers[index] if index != -1 else None
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
+
+
+def _is_configured_watch_streak_streamer(streamer):
+    settings = getattr(streamer, "settings", None)
+    return (
+        str(getattr(streamer, "source", "list")) == "list"
+        and getattr(settings, "watch_streak", False) is True
+    )
+
+
+def _sleep_while_running(twitch, seconds):
+    deadline = time.monotonic() + max(0, seconds)
+    while twitch.running and time.monotonic() < deadline:
+        time.sleep(min(1, max(0, deadline - time.monotonic())))
+    return twitch.running
+
+
+def _probe_offline_watch_streak_streamer(twitch, streamer):
+    if streamer.is_online is True:
+        return
+    try:
+        broadcast_id = twitch.get_broadcast_id(streamer)
+    except StreamerIsOfflineException:
+        return
+    except Exception as exc:
+        logger.debug(
+            "Unable to poll Watch Streak candidate %s: %s",
+            streamer.username,
+            exc,
+        )
+        return
+
+    if broadcast_id in (None, ""):
+        return
+
+    try:
+        # Bypass the normal 60-second offline cooldown because the lightweight
+        # broadcast probe has already confirmed that the channel is live.
+        streamer.offline_at = 0
+        _invalidate_stream_cache(streamer)
+        twitch.check_streamer_online(streamer)
+        if streamer.is_online is True:
+            logger.info(
+                "Detected online Watch Streak candidate %s by periodic polling",
+                streamer.username,
+            )
+    except Exception as exc:
+        logger.debug(
+            "Unable to load polled Watch Streak candidate %s: %s",
+            streamer.username,
+            exc,
+        )
+
+
+def _poll_offline_watch_streak_streamers(twitch, streamers):
+    key = id(twitch)
+    try:
+        while twitch.running:
+            for streamer in list(streamers):
+                if not twitch.running:
+                    break
+                if (
+                    _is_configured_watch_streak_streamer(streamer)
+                    and streamer.is_online is not True
+                ):
+                    _probe_offline_watch_streak_streamer(twitch, streamer)
+                if not _sleep_while_running(
+                    twitch,
+                    _OFFLINE_POLL_STAGGER_SECONDS,
+                ):
+                    break
+            if not _sleep_while_running(
+                twitch,
+                _OFFLINE_POLL_INTERVAL_SECONDS,
+            ):
+                break
+    finally:
+        with _LIVE_REFRESH_LOCK:
+            _OFFLINE_POLL_THREADS.pop(key, None)
+
+
+def _ensure_offline_poll_thread(twitch, streamers):
+    key = id(twitch)
+    with _LIVE_REFRESH_LOCK:
+        existing = _OFFLINE_POLL_THREADS.get(key)
+        if existing is not None and existing.is_alive():
+            return
+        thread = Thread(
+            target=_poll_offline_watch_streak_streamers,
+            args=(twitch, streamers),
+            name="Watch Streak online reconciliation",
+            daemon=True,
+        )
+        _OFFLINE_POLL_THREADS[key] = thread
+        thread.start()
 
 
 def apply_patch():
@@ -256,6 +360,26 @@ def apply_patch():
 
         setattr(on_message_with_live_refresh, _PATCH_MARKER, True)
         WebSocketsPool.on_message = staticmethod(on_message_with_live_refresh)
+
+    send_minute = Twitch.send_minute_watched_events
+    if not getattr(send_minute, _PATCH_MARKER, False):
+
+        def send_minute_with_offline_poll(
+            self,
+            streamers,
+            priority,
+            chunk_size=3,
+        ):
+            _ensure_offline_poll_thread(self, streamers)
+            return send_minute(
+                self,
+                streamers,
+                priority,
+                chunk_size=chunk_size,
+            )
+
+        setattr(send_minute_with_offline_poll, _PATCH_MARKER, True)
+        Twitch.send_minute_watched_events = send_minute_with_offline_poll
 
     update_history = Streamer.update_history
     if not getattr(update_history, _PATCH_MARKER, False):
