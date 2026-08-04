@@ -11,6 +11,7 @@ from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
 from .drop_priority_order_patch import apply_patch as _apply_drop_priority_order_patch
+from .explicit_game_drop_discovery_patch import apply_patch as _apply_explicit_game_drop_discovery_patch
 from .finish_started_drops_patch import apply_patch as _apply_finish_started_drops_patch
 from .fork_branding_patch import apply_patch as _apply_fork_branding_patch
 from .inventory_campaign_recovery_patch import apply_patch as _apply_inventory_campaign_recovery_patch
@@ -39,6 +40,7 @@ _apply_drop_game_main_list_preference_patch()
 _apply_finish_started_drops_patch()
 _apply_configured_drop_game_priority_patch()
 _apply_drop_priority_order_patch()
+_apply_explicit_game_drop_discovery_patch()
 _apply_watch_notifications_patch()
 _apply_status_dashboard_patch()
 _apply_status_dashboard_webhook_patch()
@@ -54,6 +56,7 @@ del _apply_drop_claim_game_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
 del _apply_drop_priority_order_patch
+del _apply_explicit_game_drop_discovery_patch
 del _apply_finish_started_drops_patch
 del _apply_fork_branding_patch
 del _apply_inventory_campaign_recovery_patch
