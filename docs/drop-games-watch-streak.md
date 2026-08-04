@@ -10,7 +10,9 @@ cookies/watch_streak_state.json
 
 Restarting the container during the same broadcast no longer resets the miner's local Watch Streak state. Entries older than 45 days are removed automatically.
 
-A Twitch `stream-up` notification schedules fresh channel checks after 30 and 75 seconds. This gives Twitch time to expose the new broadcast through its API while ensuring the channel becomes eligible for Watch Streak selection without a miner restart. When the broadcast ID changes, the local per-broadcast minutes and completion flag are reset before the matching persisted state is restored.
+The miner no longer relies only on Twitch PubSub to discover Watch Streak candidates. Configured channels with `watch_streak=True` that are currently marked offline are checked through a lightweight live-status request every two minutes. Checks are staggered across the configured list to avoid a burst of Twitch requests. When a live channel is found, its full stream state is refreshed and it becomes eligible for the next `Priority.STREAK` selection cycle without restarting the miner.
+
+A Twitch `stream-up` notification remains the faster path and schedules fresh channel checks after 30 and 75 seconds. This gives Twitch time to expose the new broadcast through its API. When the broadcast ID changes, the local per-broadcast minutes and completion flag are reset before the matching persisted state is restored.
 
 This persistence does not change Twitch's server-side Watch Streak rules. Twitch may allow a missed streak of 3 or more broadcasts to be recovered within 24 hours by watching eligible Clips, Stories, VODs, or a later live stream. Only content marked by Twitch as eligible counts; automatic Clip recovery is not implemented by this patch.
 
@@ -40,7 +42,7 @@ twitch_miner.mine(
 )
 ```
 
-For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for that campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
+For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for the campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
 An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid game-directory channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
 
