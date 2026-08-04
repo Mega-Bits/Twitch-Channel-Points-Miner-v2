@@ -2,6 +2,31 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.0
+
+### Added
+
+- New opt-in `finish_started_drops` setting for `mine()` and `run()`.
+- Active campaigns already present in Twitch's `dropCampaignsInProgress` can be completed even when their game is not listed in `drop_games`.
+- Started unmonitored campaigns can temporarily use eligible configured streamers, campaign fallback channels, or the Drops-enabled game directory.
+
+### Changed
+
+- Started unmonitored campaigns are ordered by current progress and use the existing single-campaign Drop lock.
+- Temporarily resumed games remain separate from the explicit `drop_games` configuration and continue to display `explicit game farming: no` in the Discord dashboard.
+- A campaign selected through `drop_games` now reserves the dedicated Drop slot before unrelated Drops found on normal priority streamers.
+
+### Fixed
+
+- An unrelated Drop-enabled streamer from the configured list no longer suppresses the directory fallback for an explicitly configured game such as `Rust`.
+- The second watch slot excludes other Drop-enabled streams while a configured game campaign is being farmed, preventing them from stealing Drop progress.
+- Main-list streamers eligible for the selected configured campaign remain preferred over campaign and game-directory fallbacks.
+
+### Safety
+
+- `finish_started_drops` defaults to `False`.
+- Untouched campaigns outside `drop_games`, campaigns without remaining rewards, campaigns that have not started, and expired campaigns are ignored.
+
 ## 2.2.3
 
 ### Fixed

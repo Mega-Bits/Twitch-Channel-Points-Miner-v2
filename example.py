@@ -179,4 +179,8 @@ twitch_miner.mine(
     ],
     # Maximum Drops-enabled directory candidates requested per game (1-30).
     drop_game_limit=10,
+    # Finish active campaigns Twitch already lists as in progress, even when
+    # their game is not present in drop_games. Untouched and expired campaigns
+    # are ignored. Leave False to farm only explicitly configured games.
+    finish_started_drops=True,
 )

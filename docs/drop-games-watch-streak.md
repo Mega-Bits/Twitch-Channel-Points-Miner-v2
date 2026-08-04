@@ -40,6 +40,8 @@ twitch_miner.mine(
 
 For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for that campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
+An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. While the configured campaign is being farmed, other Drop-enabled streams are excluded from the second slot because Twitch can advance only one time-based Drop campaign at a time.
+
 At every inventory sync the miner:
 
 1. refreshes game and Drop eligibility for configured streamers;
@@ -57,6 +59,35 @@ Game-directory channels:
 - never override an eligible configured-list streamer.
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
+
+For example, with `drop_games=["Rust"]`, a Dead by Daylight or Overwatch Drop found on a normal list streamer no longer blocks a qualifying Rust streamer. The miner chooses a main-list Rust streamer when available and otherwise uses a Rust directory candidate.
+
+## Finish already-started unmonitored Drops
+
+Set `finish_started_drops=True` to finish campaigns that Twitch already lists in `dropCampaignsInProgress`, even when their game is not present in `drop_games`:
+
+```python
+twitch_miner.mine(
+    streamers=["otzdarva", "deadbydaylight"],
+    drop_games=["Dead by Daylight"],
+    drop_game_limit=10,
+    finish_started_drops=True,
+)
+```
+
+The option defaults to `False`. When enabled, the miner temporarily adds only qualifying inventory campaigns to the Drop selection pool. A campaign qualifies when:
+
+- Twitch reports it as already in progress;
+- it still contains an unclaimed Drop;
+- its start time has passed;
+- its campaign end time has not passed;
+- its game is not already explicitly covered by `drop_games`.
+
+Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. The miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
+
+The temporary game is not added permanently to `drop_games`. In the Discord dashboard it remains marked as `explicit game farming: no`, which distinguishes an inventory-resume campaign from a game explicitly configured by the user.
+
+Untouched campaigns outside `drop_games` are not started by this option, and expired campaigns are ignored. Once the inventory campaign is complete or disappears from Twitch's active inventory, its temporary game-directory candidates and campaign lock are removed.
 
 Useful Drop events:
 

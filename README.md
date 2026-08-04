@@ -9,6 +9,7 @@ This fork watches configured Twitch channels, collects Channel Points, claims el
 ## Fork features
 
 - Game-based Drop farming through `drop_games`.
+- Optional completion of already-started, unexpired inventory Drops outside `drop_games`.
 - Main-list streamers are preferred over directory fallbacks and remain selected while eligible.
 - One dedicated Drop slot; the second slot follows the configured priority.
 - Persistent local Watch Streak state across container restarts during the same broadcast.
@@ -92,10 +93,13 @@ twitch_miner.mine(
     streamers=["otzdarva", "deadbydaylight"],
     drop_games=["Dead by Daylight", "Overwatch 2"],
     drop_game_limit=10,
+    finish_started_drops=True,
 )
 ```
 
 At every inventory sync, configured streamers are refreshed and checked first. The game directory is queried only when no configured streamer is online, playing the correct game, and eligible for the campaign.
+
+`finish_started_drops=True` additionally completes active campaigns Twitch already lists as in progress, even when their game is not present in `drop_games`. It ignores untouched and expired campaigns, uses the same dedicated Drop slot and campaign lock, and claims completed rewards through the normal inventory path. The option defaults to `False`.
 
 ## Notification events
 
