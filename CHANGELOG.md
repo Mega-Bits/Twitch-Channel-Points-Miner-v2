@@ -6,7 +6,8 @@ All notable changes to the Mega-Bits fork are documented here.
 
 ### Fixed
 
-- A `stream-up` PubSub event now schedules fresh channel checks, so a newly live channel becomes eligible for Watch Streak selection without restarting the miner.
+- Offline-marked configured Watch Streak channels are now polled every two minutes, so a missed Twitch PubSub event no longer leaves an already-online streak candidate undiscovered until restart.
+- A `stream-up` PubSub event remains a faster path and schedules fresh channel checks after invalidating cached stream data.
 - A changed Twitch broadcast ID resets and reloads the per-broadcast Watch Streak state instead of retaining the completed state from the previous broadcast.
 - The configured-game Drop selector now uses Twitch's channel campaign IDs immediately instead of waiting for the next full campaign-object assignment.
 - Valid game-directory and campaign fallback channels can therefore enter the Drop slot as soon as Twitch confirms eligibility for the selected campaign.
