@@ -44,6 +44,8 @@ twitch_miner.mine(
 
 For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for the campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
+The campaign lookup does not rely exclusively on Twitch's dashboard `status` value. Twitch can display a campaign as currently watchable while returning a status other than `ACTIVE` through the GraphQL dashboard response. The miner therefore loads all dashboard status values and applies the campaign and individual Drop start/end windows as the final activity filter. Expired and not-yet-started campaigns remain excluded.
+
 An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid configured-list channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
 
 Twitch can return a valid `DROPS_ENABLED` game-directory channel before the channel-specific campaign ID appears in its stream metadata. A discovered `game_drop` or campaign fallback channel is therefore accepted from its verified discovery assignment when all of these conditions are true:
@@ -61,7 +63,7 @@ The final two-slot order is deterministic:
 2. when no configured-game campaign has an eligible live channel, an already-started unmonitored campaign enabled through `finish_started_drops`;
 3. the remaining slot follows the configured normal priority list.
 
-When the miner reaches step 2, it now records one deduplicated diagnostic for the current state. The message distinguishes between no active campaign matching `drop_games`, no matching directory channel, offline or warming-up candidates, a wrong streamed game, disabled Drop claiming, a different fallback assignment, and delayed Twitch campaign metadata. The diagnostic is written again only when the reason summary changes.
+When the miner reaches step 2, it records one deduplicated diagnostic for the current state. The message distinguishes between no current campaign matching `drop_games` after all dashboard status values were checked, no matching directory channel, offline or warming-up candidates, a wrong streamed game, disabled Drop claiming, a different fallback assignment, and delayed Twitch campaign metadata. The diagnostic is written again only when the reason summary changes.
 
 The normal slot is recalculated directly from the original configured streamer list. With `Priority.ORDER`, it therefore uses the first eligible online configured streamer after excluding only the streamer already occupying the Drop slot. `Priority.STREAK`, point-balance priorities, and `Priority.SUBSCRIBED` retain their normal ordering rules. `Priority.DROPS` is skipped for the second slot because Drop selection is already handled by the dedicated first slot.
 
