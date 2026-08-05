@@ -2,6 +2,15 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.5
+
+### Fixed
+
+- Explicit game Drop discovery no longer depends exclusively on Twitch's `ACTIVE` dashboard status label.
+- The miner now considers every dashboard campaign status and lets the campaign and individual Drop start/end windows determine whether a campaign is currently farmable.
+- Campaigns visible as active in Twitch, such as the reported Marvel Rivals campaign, are no longer discarded before game-directory discovery merely because Twitch returned a different status value.
+- The diagnostic now states that all dashboard status values were checked before started Drop completion is used as fallback.
+
 ## 2.3.4
 
 ### Fixed
