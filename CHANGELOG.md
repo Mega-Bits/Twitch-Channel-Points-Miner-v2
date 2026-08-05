@@ -2,6 +2,23 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.7
+
+### Added
+
+- Explicit `drop_games` can now farm from Twitch's `DROPS_ENABLED` game directory even when `ViewerDropsDashboard` returns no campaign catalog for the account.
+- The game-directory-only fallback remains above started unmonitored Drop completion and below a fully identified explicit campaign.
+- Configured-list channels discovered in the game directory remain preferred over generated directory fallback channels.
+
+### Changed
+
+- The Discord dashboard and watch notifications identify a catalogless selection as `Game drop` and state that campaign progress is pending from Twitch.
+- Once Twitch exposes the campaign through inventory or the dashboard, the normal campaign-specific selection, tracking, and claiming paths take over automatically.
+
+### Diagnostics
+
+- The miner reports how many `DROPS_ENABLED` directory candidates were found for an explicit game whose campaign catalog is unavailable.
+
 ## 2.3.6
 
 ### Fixed
