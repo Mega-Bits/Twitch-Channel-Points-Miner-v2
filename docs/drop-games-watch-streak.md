@@ -46,6 +46,8 @@ For matching active Drop campaigns, the miner checks the configured streamer lis
 
 The campaign lookup does not rely exclusively on Twitch's dashboard `status` value. Twitch can display a campaign as currently watchable while returning a status other than `ACTIVE` through the GraphQL dashboard response. The miner therefore loads all dashboard status values and applies the campaign and individual Drop start/end windows as the final activity filter. Expired and not-yet-started campaigns remain excluded.
 
+Twitch periodically replaces persisted GraphQL query hashes. Version 2.3.6 refreshes the Drop catalog, inventory, campaign-details, and channel-eligibility queries together. When Twitch invalidates one of these queries again, the miner logs the GraphQL error once for the unchanged failure state instead of silently converting the response into an empty campaign list. A later successful response logs that the operation recovered.
+
 An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid configured-list channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
 
 Twitch can return a valid `DROPS_ENABLED` game-directory channel before the channel-specific campaign ID appears in its stream metadata. A discovered `game_drop` or campaign fallback channel is therefore accepted from its verified discovery assignment when all of these conditions are true:
