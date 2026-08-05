@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 from TwitchChannelPointsMiner import configured_drop_game_priority_patch as configured
-from TwitchChannelPointsMiner import drop_game_main_list_preference_patch as main_preference
 from TwitchChannelPointsMiner import drop_games_patch
 from TwitchChannelPointsMiner import drop_priority_order_patch as priority_order
 from TwitchChannelPointsMiner import explicit_game_drop_discovery_patch as discovery
@@ -56,10 +55,17 @@ def _refresh_catalogless_game_streamers(
         return _ORIGINAL_MAIN_REFRESH(twitch, streamers, campaigns)
 
     previous_mapping = dict(config.get("catalogless_streamer_games", {}) or {})
+    unresolved_games = {
+        drop_games_patch._normalize(game_name)
+        for game_name in _explicit_games(twitch)
+        if not _matching_catalog_campaigns(campaigns, game_name)
+    }
     protected: dict[int, bool] = {}
     for streamer in streamers:
+        mapped_game = previous_mapping.get(streamer.username)
         if (
-            streamer.username in previous_mapping
+            mapped_game is not None
+            and drop_games_patch._normalize(mapped_game) in unresolved_games
             and _source(streamer) == "game_drop"
         ):
             protected[id(streamer)] = bool(streamer.is_online)
@@ -224,7 +230,6 @@ def _catalogless_selection(twitch: Any, streamer: Any) -> tuple[dict[str, Any], 
 
 
 def _install_dashboard_support() -> None:
-    from TwitchChannelPointsMiner import status_dashboard_enhancements_patch as enhancements
     from TwitchChannelPointsMiner import status_dashboard_patch as dashboard
     from TwitchChannelPointsMiner import watch_notifications_patch
 
