@@ -8,17 +8,21 @@ from typing import Any
 
 from TwitchChannelPointsMiner import configured_drop_game_priority_patch as configured
 from TwitchChannelPointsMiner import drop_game_main_list_preference_patch as main_preference
+from TwitchChannelPointsMiner import drop_games_patch
 from TwitchChannelPointsMiner import drop_priority_order_patch as priority_order
 from TwitchChannelPointsMiner import finish_started_drops_patch
+from TwitchChannelPointsMiner.classes.Twitch import Twitch
 
 logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_explicit_game_drop_discovery_patch"
+_DASHBOARD_PATCH_MARKER = "_explicit_game_dashboard_status_patch"
 _FALLBACK_SOURCES = {"drop_fallback", "game_drop"}
 _LOGGED_DIRECTORY_ASSIGNMENTS: set[tuple[str, Any]] = set()
 
 _ORIGINAL_CONFIGURED_ELIGIBILITY = configured._eligible_for_campaign
 _ORIGINAL_MAIN_ELIGIBILITY = main_preference._eligible_for_campaign
 _ORIGINAL_DROP_CANDIDATE = priority_order._drop_candidate
+_ORIGINAL_DROPS_DASHBOARD = getattr(Twitch, "_Twitch__get_drops_dashboard", None)
 
 
 def _source(streamer: Any) -> str:
@@ -36,6 +40,33 @@ def _campaign_label(campaign: Any) -> str:
     else:
         game_name = str(game or "unknown game")
     return f"{game_name} / {getattr(campaign, 'name', getattr(campaign, 'id', 'unknown campaign'))}"
+
+
+def _dashboard_campaigns_without_status_loss(
+    twitch: Twitch,
+    status: Any = None,
+) -> list[Any]:
+    """Let campaign/drop time windows decide activity instead of a brittle status label."""
+    if not callable(_ORIGINAL_DROPS_DASHBOARD):
+        return []
+    if status is None or str(status).upper() != "ACTIVE":
+        return list(_ORIGINAL_DROPS_DASHBOARD(twitch, status=status) or [])
+
+    campaigns = list(_ORIGINAL_DROPS_DASHBOARD(twitch, status=None) or [])
+    status_counts = Counter(
+        str(campaign.get("status") or "UNKNOWN").upper()
+        for campaign in campaigns
+        if isinstance(campaign, dict)
+    )
+    signature = tuple(sorted(status_counts.items()))
+    config = drop_games_patch._CONFIG.get(id(twitch))
+    if config is not None and config.get("dashboard_campaign_statuses") != signature:
+        config["dashboard_campaign_statuses"] = signature
+        logger.info(
+            "Drop dashboard campaign statuses: %s; current campaign and Drop time windows will determine activity",
+            ", ".join(f"{name}={count}" for name, count in signature) or "none",
+        )
+    return campaigns
 
 
 def _directory_assignment_eligibility(
@@ -149,22 +180,18 @@ def _log_explicit_game_failure(
     streamers: list[Any],
     config: dict[str, Any],
 ) -> None:
-    games = _explicit_game_names(twitch)
-    if not games:
-        config.pop("explicit_drop_diagnostic", None)
-        return
-
     campaigns = config.get("campaigns_by_id", {}) or {}
     explicit_ids, _ = priority_order._explicit_first_campaigns(twitch, config)
 
     if not explicit_ids:
+        games = _explicit_game_names(twitch)
         signature = ("no-campaign", games)
         if config.get("explicit_drop_diagnostic") == signature:
             return
         config["explicit_drop_diagnostic"] = signature
         logger.info(
-            "No active open Drop campaign matched explicit drop_games [%s]; started Drop completion remains fallback",
-            ", ".join(games),
+            "No current open Drop campaign matched explicit drop_games [%s] after checking all Twitch dashboard status values; started Drop completion remains fallback",
+            ", ".join(games) or "none",
         )
         return
 
@@ -207,7 +234,17 @@ def _drop_candidate_with_directory_fallback(
 
 
 def apply_patch() -> None:
-    """Install verified directory eligibility and deduplicated diagnostics."""
+    """Install status-tolerant campaign discovery and verified directory eligibility."""
+    dashboard_name = "_Twitch__get_drops_dashboard"
+    dashboard = getattr(Twitch, dashboard_name, None)
+    if dashboard is not None and not getattr(dashboard, _DASHBOARD_PATCH_MARKER, False):
+        setattr(
+            _dashboard_campaigns_without_status_loss,
+            _DASHBOARD_PATCH_MARKER,
+            True,
+        )
+        setattr(Twitch, dashboard_name, _dashboard_campaigns_without_status_loss)
+
     if getattr(priority_order, _PATCH_MARKER, False):
         return
 
