@@ -2,6 +2,19 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.6
+
+### Fixed
+
+- Refreshed Twitch's persisted GraphQL hashes for `Inventory`, `ViewerDropsDashboard`, `DropCampaignDetails`, and `DropsHighlightService_AvailableDrops`.
+- Explicit `drop_games` discovery can again load the current campaign catalog instead of receiving an empty dashboard response.
+- Inventory-based Drop completion and channel campaign eligibility use the corresponding current Twitch queries.
+
+### Diagnostics
+
+- Drop-related GraphQL errors such as `PersistedQueryNotFound` are now logged once per unchanged failure state instead of being misreported as an empty campaign catalog.
+- A recovery message is logged when a previously failing Drop query succeeds again.
+
 ## 2.3.5
 
 ### Fixed
