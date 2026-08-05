@@ -44,13 +44,24 @@ twitch_miner.mine(
 
 For matching active Drop campaigns, the miner checks the configured streamer list first. Only when no configured streamer is currently online, streaming the matching game, and eligible for the campaign does it query Twitch's game directory with the `DROPS_ENABLED` filter.
 
-An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid game-directory channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
+An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid configured-list channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
+
+Twitch can return a valid `DROPS_ENABLED` game-directory channel before the channel-specific campaign ID appears in its stream metadata. A discovered `game_drop` or campaign fallback channel is therefore accepted from its verified discovery assignment when all of these conditions are true:
+
+- the channel is online and past the normal 30-second warm-up delay;
+- `claim_drops=True`;
+- the channel is currently streaming the campaign game;
+- the discovery pass assigned the exact campaign ID to that fallback channel.
+
+This relaxed metadata rule applies only to generated `game_drop` and `drop_fallback` candidates. Streamers supplied in the user's configured list still require Twitch to advertise the matching campaign ID. Main-list preference therefore remains strict and a generated fallback never overrides an eligible configured streamer.
 
 The final two-slot order is deterministic:
 
 1. an eligible campaign from `drop_games`;
 2. when no configured-game campaign has an eligible live channel, an already-started unmonitored campaign enabled through `finish_started_drops`;
 3. the remaining slot follows the configured normal priority list.
+
+When the miner reaches step 2, it now records one deduplicated diagnostic for the current state. The message distinguishes between no active campaign matching `drop_games`, no matching directory channel, offline or warming-up candidates, a wrong streamed game, disabled Drop claiming, a different fallback assignment, and delayed Twitch campaign metadata. The diagnostic is written again only when the reason summary changes.
 
 The normal slot is recalculated directly from the original configured streamer list. With `Priority.ORDER`, it therefore uses the first eligible online configured streamer after excluding only the streamer already occupying the Drop slot. `Priority.STREAK`, point-balance priorities, and `Priority.SUBSCRIBED` retain their normal ordering rules. `Priority.DROPS` is skipped for the second slot because Drop selection is already handled by the dedicated first slot.
 
@@ -70,7 +81,7 @@ Game-directory channels:
 - remain available as warm fallbacks while their campaign is still active;
 - never override an eligible configured-list streamer.
 
-`drop_game_limit` accepts values from 1 through 30 per game and defaults to 10.
+`drop_game_limit` accepts values from 1 through 30 per game and defaults to 10. A larger value broadens the first directory lookup when a game has many live Drops-enabled channels.
 
 For example, with `drop_games=["Rust"]`, a Dead by Daylight or Overwatch Drop found on a normal list streamer no longer blocks a qualifying Rust streamer. The miner chooses a main-list Rust streamer when available and otherwise uses a Rust directory candidate. A started campaign from another game is considered only when no eligible Rust candidate is currently available.
 

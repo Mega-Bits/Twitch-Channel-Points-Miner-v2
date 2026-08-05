@@ -2,6 +2,15 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.3.4
+
+### Fixed
+
+- A live `game_drop` or campaign fallback channel returned by Twitch's `DROPS_ENABLED` discovery can now enter the explicit game Drop slot while Twitch's per-channel campaign metadata is still pending.
+- Verified fallback assignments still require the channel to be online, past its warm-up delay, configured with `claim_drops=True`, streaming the campaign game, and assigned to the exact campaign.
+- Configured-list streamers continue to require Twitch's advertised campaign ID, preserving the stricter eligibility check for user-provided channels.
+- When an explicit game cannot be selected, the miner now logs a deduplicated reason summary such as no active campaign, no matching channel, offline candidates, wrong game, warm-up delay, or missing campaign metadata before considering started Drop completion.
+
 ## 2.3.3
 
 ### Fixed
@@ -29,7 +38,7 @@ All notable changes to the Mega-Bits fork are documented here.
 - A changed Twitch broadcast ID resets and reloads the per-broadcast Watch Streak state instead of retaining the completed state from the previous broadcast.
 - The configured-game Drop selector now uses Twitch's channel campaign IDs immediately instead of waiting for the next full campaign-object assignment.
 - Valid game-directory and campaign fallback channels can therefore enter the Drop slot as soon as Twitch confirms eligibility for the selected campaign.
-- The normal slot preserves a pending Watch Streak even when that channel also advertises a different Drop; after the streak is complete, unrelated Drop-eligible channels remain excluded.
+- The normal slot preserves a pending Watch Streak even when that channel also advertises another Drop; after the streak is complete, unrelated Drop-eligible channels remain excluded.
 - Started inventory campaigns missing from `ViewerDropsDashboard` are recovered through their campaign details and fed into the normal campaign lock, fallback discovery, progress, and claim paths.
 - Inventory campaign and Drop active windows are evaluated against UTC, preventing local container time zones from hiding still-active campaigns early.
 
