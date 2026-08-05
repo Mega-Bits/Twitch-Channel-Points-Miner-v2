@@ -10,6 +10,7 @@ from .discord_format_patch import apply_patch as _apply_discord_format_patch
 from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
+from .drop_gql_queries_patch import apply_patch as _apply_drop_gql_queries_patch
 from .drop_priority_order_patch import apply_patch as _apply_drop_priority_order_patch
 from .explicit_game_drop_discovery_patch import apply_patch as _apply_explicit_game_drop_discovery_patch
 from .finish_started_drops_patch import apply_patch as _apply_finish_started_drops_patch
@@ -28,6 +29,7 @@ from .watch_notifications_patch import apply_patch as _apply_watch_notifications
 from .watch_streak_persistence_patch import apply_patch as _apply_watch_streak_persistence_patch
 
 _apply_fork_branding_patch()
+_apply_drop_gql_queries_patch()
 _apply_channel_points_context_patch()
 _apply_discord_format_patch()
 _apply_drop_claim_game_patch()
@@ -55,6 +57,7 @@ del _apply_discord_format_patch
 del _apply_drop_claim_game_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
+del _apply_drop_gql_queries_patch
 del _apply_drop_priority_order_patch
 del _apply_explicit_game_drop_discovery_patch
 del _apply_finish_started_drops_patch
