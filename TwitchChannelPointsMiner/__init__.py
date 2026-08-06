@@ -16,6 +16,8 @@ from .drop_priority_order_patch import apply_patch as _apply_drop_priority_order
 from .explicit_game_drop_discovery_patch import apply_patch as _apply_explicit_game_drop_discovery_patch
 from .finish_started_drops_patch import apply_patch as _apply_finish_started_drops_patch
 from .fork_branding_patch import apply_patch as _apply_fork_branding_patch
+from .game_drop_handoff_patch import apply_patch as _apply_game_drop_handoff_patch
+from .game_drop_progress_verification_patch import apply_patch as _apply_game_drop_progress_verification_patch
 from .inventory_campaign_recovery_patch import apply_patch as _apply_inventory_campaign_recovery_patch
 from .playback_access_token_patch import apply_patch as _apply_playback_access_token_patch
 from .status_dashboard_patch import apply_patch as _apply_status_dashboard_patch
@@ -50,6 +52,8 @@ _apply_status_dashboard_webhook_patch()
 _apply_status_dashboard_enhancements_patch()
 _apply_status_dashboard_drop_reason_patch()
 _apply_catalogless_game_drop_patch()
+_apply_game_drop_handoff_patch()
+_apply_game_drop_progress_verification_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
@@ -65,6 +69,8 @@ del _apply_drop_priority_order_patch
 del _apply_explicit_game_drop_discovery_patch
 del _apply_finish_started_drops_patch
 del _apply_fork_branding_patch
+del _apply_game_drop_handoff_patch
+del _apply_game_drop_progress_verification_patch
 del _apply_inventory_campaign_recovery_patch
 del _apply_playback_access_token_patch
 del _apply_status_dashboard_clock_patch

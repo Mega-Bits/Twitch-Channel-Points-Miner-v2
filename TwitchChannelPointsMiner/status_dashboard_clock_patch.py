@@ -96,6 +96,21 @@ def _correct_event(item: Any, offset: float) -> Any:
     return corrected
 
 
+def _correct_watch_slot(item: Any, offset: float) -> Any:
+    if not isinstance(item, dict):
+        return item
+    corrected = dict(item)
+    verification = corrected.get("drop_progress_verification")
+    if isinstance(verification, dict):
+        verification = dict(verification)
+        verification["deadline_epoch"] = _correct_epoch(
+            verification.get("deadline_epoch"),
+            offset,
+        )
+        corrected["drop_progress_verification"] = verification
+    return corrected
+
+
 def apply_patch() -> None:
     """Install dashboard clock correction."""
     state_class = dashboard.DashboardState
@@ -134,6 +149,10 @@ def apply_patch() -> None:
                 "last_inventory_sync",
             ):
                 snapshot[key] = _correct_epoch(snapshot.get(key), offset)
+            snapshot["watch_slots"] = [
+                _correct_watch_slot(item, offset)
+                for item in snapshot.get("watch_slots", [])
+            ]
             snapshot["recent_claims"] = [
                 _correct_event(item, offset)
                 for item in snapshot.get("recent_claims", [])
