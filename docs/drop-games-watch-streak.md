@@ -48,24 +48,27 @@ The campaign lookup does not rely exclusively on Twitch's dashboard `status` val
 
 Twitch periodically replaces persisted GraphQL query hashes. Version 2.3.6 refreshes the Drop catalog, inventory, campaign-details, and channel-eligibility queries together. When Twitch invalidates one of these queries again, the miner logs the GraphQL error once for the unchanged failure state instead of silently converting the response into an empty campaign list. A later successful response logs that the operation recovered.
 
+Some accounts can still receive a successful `ViewerDropsDashboard` response whose campaign list is empty while Twitch's website displays an active campaign. Version 2.3.7 therefore supports a game-name-only fallback for explicitly configured games. When no catalog campaign exists for an explicit game, the miner queries that game's `DROPS_ENABLED` directory anyway and watches a qualifying channel. A configured-list channel returned by the directory is preferred over a generated directory channel. Once Twitch exposes the campaign through inventory or the dashboard, the normal campaign-specific tracking and claiming paths take over automatically.
+
 An explicitly configured game reserves the dedicated Drop slot. A normal priority streamer that happens to expose a different Drop campaign does not count as satisfying that configured game and cannot suppress its directory fallback. The selector accepts Twitch's channel campaign IDs immediately, so a valid configured-list channel no longer has to wait for a later full campaign-object assignment before it can enter the Drop slot.
 
 Twitch can return a valid `DROPS_ENABLED` game-directory channel before the channel-specific campaign ID appears in its stream metadata. A discovered `game_drop` or campaign fallback channel is therefore accepted from its verified discovery assignment when all of these conditions are true:
 
 - the channel is online and past the normal 30-second warm-up delay;
 - `claim_drops=True`;
-- the channel is currently streaming the campaign game;
-- the discovery pass assigned the exact campaign ID to that fallback channel.
+- the channel is currently streaming the configured game;
+- either Twitch assigned the exact campaign ID or the campaign catalog is unavailable and the channel came from that game's `DROPS_ENABLED` directory.
 
-This relaxed metadata rule applies only to generated `game_drop` and `drop_fallback` candidates. Streamers supplied in the user's configured list still require Twitch to advertise the matching campaign ID. Main-list preference therefore remains strict and a generated fallback never overrides an eligible configured streamer.
+The relaxed catalogless rule applies only to an explicitly configured `drop_games` entry. It does not start untouched campaigns from unrelated games. A game-directory-only selection is shown as `Game drop`; the dashboard states that campaign and Drop progress are pending until Twitch exposes them.
 
 The final two-slot order is deterministic:
 
-1. an eligible campaign from `drop_games`;
-2. when no configured-game campaign has an eligible live channel, an already-started unmonitored campaign enabled through `finish_started_drops`;
-3. the remaining slot follows the configured normal priority list.
+1. an eligible, fully identified campaign from `drop_games`;
+2. a `DROPS_ENABLED` game-directory channel for an explicit game whose campaign catalog is unavailable;
+3. when neither explicit path is available, an already-started unmonitored campaign enabled through `finish_started_drops`;
+4. the remaining slot follows the configured normal priority list.
 
-When the miner reaches step 2, it records one deduplicated diagnostic for the current state. The message distinguishes between no current campaign matching `drop_games` after all dashboard status values were checked, no matching directory channel, offline or warming-up candidates, a wrong streamed game, disabled Drop claiming, a different fallback assignment, and delayed Twitch campaign metadata. The diagnostic is written again only when the reason summary changes.
+When the miner reaches the completion fallback, it records one deduplicated diagnostic for the current state. The message distinguishes between no current campaign matching `drop_games`, no `DROPS_ENABLED` directory channel, offline or warming-up candidates, a wrong streamed game, disabled Drop claiming, a different fallback assignment, and delayed Twitch campaign metadata. The diagnostic is written again only when the reason summary changes.
 
 The normal slot is recalculated directly from the original configured streamer list. With `Priority.ORDER`, it therefore uses the first eligible online configured streamer after excluding only the streamer already occupying the Drop slot. `Priority.STREAK`, point-balance priorities, and `Priority.SUBSCRIBED` retain their normal ordering rules. `Priority.DROPS` is skipped for the second slot because Drop selection is already handled by the dedicated first slot.
 
@@ -73,16 +76,17 @@ At every inventory sync the miner:
 
 1. refreshes game and Drop eligibility for configured streamers;
 2. keeps the already selected configured streamer while it remains eligible;
-3. switches to another configured streamer only when the current one goes offline, changes game, or loses campaign eligibility;
-4. searches the game directory when no configured streamer qualifies;
-5. replaces a directory fallback with a qualifying configured streamer as soon as the next inventory sync detects one;
-6. releases the streamer and campaign lock when the Drop campaign is complete.
+3. switches to another configured streamer only when the current one goes offline, changes game, or loses eligibility;
+4. searches the explicit game's `DROPS_ENABLED` directory even when the campaign catalog is empty;
+5. replaces a generated directory fallback with a qualifying configured streamer as soon as one is discovered;
+6. switches from game-only mode to the normal campaign-specific path when Twitch exposes campaign progress;
+7. releases the streamer and campaign lock when the Drop campaign is complete.
 
 Game-directory channels:
 
 - are used only for the dedicated Drop slot;
 - never enter `ORDER`, `STREAK`, `SUBSCRIBED`, or point-balance priorities;
-- remain available as warm fallbacks while their campaign is still active;
+- remain available as warm fallbacks while the configured game remains active in the directory;
 - never override an eligible configured-list streamer.
 
 `drop_game_limit` accepts values from 1 through 30 per game and defaults to 10. A larger value broadens the first directory lookup when a game has many live Drops-enabled channels.
@@ -112,7 +116,7 @@ The option defaults to `False`. When enabled, the miner temporarily adds only qu
 
 Started inventory campaigns are recovered even when Twitch omits them from the separate `ViewerDropsDashboard` campaign catalog. The miner loads their campaign details by ID, synchronizes their inventory progress, and then feeds them through the same campaign lock, streamer preference, game-directory fallback, dashboard, and claim paths. Active campaign and Drop windows are evaluated against UTC rather than the container's local time zone.
 
-Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. They remain lower priority than any explicitly configured game that currently has an eligible live channel. Within a completion campaign, the miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
+Started unmonitored campaigns are ordered by their current Drop progress and use the existing single-campaign lock, so one campaign is completed before the miner moves to the next. They remain lower priority than either explicit game path. Within a completion campaign, the miner first checks eligible configured streamers, then campaign-specific fallback channels, and finally the Drops-enabled game directory. Completed Drops are claimed through the normal inventory claim path.
 
 The temporary game is not added permanently to `drop_games`. In the Discord dashboard it remains marked as `explicit game farming: no`, which distinguishes an inventory-resume campaign from a game explicitly configured by the user. The `Currently watching` reason is shown as `Game drop` for explicit games and `Drop completion` for resumed inventory campaigns.
 

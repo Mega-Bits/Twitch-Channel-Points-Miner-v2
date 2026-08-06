@@ -4,6 +4,7 @@ from pathlib import Path as _Path
 __version__ = _Path(__file__).with_name("VERSION").read_text(encoding="utf-8").strip()
 del _Path
 
+from .catalogless_game_drop_patch import apply_patch as _apply_catalogless_game_drop_patch
 from .channel_points_context_patch import apply_patch as _apply_channel_points_context_patch
 from .configured_drop_game_priority_patch import apply_patch as _apply_configured_drop_game_priority_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
@@ -48,9 +49,11 @@ _apply_status_dashboard_patch()
 _apply_status_dashboard_webhook_patch()
 _apply_status_dashboard_enhancements_patch()
 _apply_status_dashboard_drop_reason_patch()
+_apply_catalogless_game_drop_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
+del _apply_catalogless_game_drop_patch
 del _apply_channel_points_context_patch
 del _apply_configured_drop_game_priority_patch
 del _apply_discord_format_patch
