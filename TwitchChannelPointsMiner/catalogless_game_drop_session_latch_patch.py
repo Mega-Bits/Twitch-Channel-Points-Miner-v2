@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from TwitchChannelPointsMiner import catalogless_game_drop_runtime_patch as runtime
@@ -21,6 +20,47 @@ def _settings_with_session_latch(twitch: Any) -> dict[str, int]:
     if override is not None:
         settings["retry_cooldown"] = override["retry_cooldown"]
     return settings
+
+
+def _failure_history(config: dict[str, Any]) -> dict[str, set[str]]:
+    return config.setdefault("catalogless_game_runtime_failure_history", {})
+
+
+def _failure_usernames_with_history(
+    config: dict[str, Any],
+    game_key: str,
+    now: float,
+) -> set[str]:
+    current = set(_ORIGINAL_FAILURE_USERNAMES(config, game_key, now))
+    history = _failure_history(config).setdefault(game_key, set())
+    history.update(current)
+    return set(history)
+
+
+def _cleanup_breakers_with_history(
+    config: dict[str, Any],
+    now: float,
+) -> dict[str, float]:
+    before = {
+        game_key: runtime._safe_number(deadline)
+        for game_key, deadline in (
+            config.get("catalogless_game_runtime_breakers", {}) or {}
+        ).items()
+    }
+    breakers = _ORIGINAL_CLEANUP_BREAKERS(config, now)
+    history = _failure_history(config)
+    for game_key, deadline in before.items():
+        if deadline <= now and game_key not in breakers:
+            history.pop(game_key, None)
+    return breakers
+
+
+def _clear_game_runtime_with_history(
+    config: dict[str, Any],
+    game_key: str,
+) -> None:
+    _ORIGINAL_CLEAR_GAME_RUNTIME(config, game_key)
+    _failure_history(config).pop(game_key, None)
 
 
 def _open_breaker_with_session_latch(
@@ -126,10 +166,19 @@ def apply_patch() -> None:
         return
 
     global _ORIGINAL_SETTINGS
+    global _ORIGINAL_FAILURE_USERNAMES
+    global _ORIGINAL_CLEANUP_BREAKERS
+    global _ORIGINAL_CLEAR_GAME_RUNTIME
     global _ORIGINAL_OPEN_BREAKER
     _ORIGINAL_SETTINGS = runtime._settings
+    _ORIGINAL_FAILURE_USERNAMES = runtime._failure_usernames
+    _ORIGINAL_CLEANUP_BREAKERS = runtime._cleanup_breakers
+    _ORIGINAL_CLEAR_GAME_RUNTIME = runtime._clear_game_runtime
     _ORIGINAL_OPEN_BREAKER = runtime._open_breaker
     runtime._settings = _settings_with_session_latch
+    runtime._failure_usernames = _failure_usernames_with_history
+    runtime._cleanup_breakers = _cleanup_breakers_with_history
+    runtime._clear_game_runtime = _clear_game_runtime_with_history
     runtime._open_breaker = _open_breaker_with_session_latch
     runtime._DEFAULT_RETRY_COOLDOWN = _DEFAULT_RETRY_COOLDOWN
     _install_runtime_options()
