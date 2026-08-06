@@ -53,8 +53,9 @@ def _parse_epoch(value: Any) -> float | None:
         return float(value)
     if not isinstance(value, str) or not value.strip():
         return None
+    text = value.strip()
     try:
-        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
     if parsed.tzinfo is None:
@@ -79,8 +80,8 @@ def _drop_state(
     current = _safe_number(progress.get("currentMinutesWatched"))
     required = _safe_number(drop.get("requiredMinutesWatched"))
     instance_id = progress.get("dropInstanceID")
-    drop_end = _parse_epoch(drop.get("endAt"))
-    ends = [value for value in (drop_end, campaign_end) if value is not None]
+    end_at = _parse_epoch(drop.get("endAt")) or campaign_end
+    ends = [value for value in (end_at, campaign_end) if value is not None]
     effective_end = min(ends) if ends else None
     remaining_minutes = max(0.0, required - current)
     active = effective_end is None or now < effective_end
@@ -100,6 +101,7 @@ def _drop_state(
         "claimable": claimable,
         "finishable": finishable,
         "remaining_minutes": remaining_minutes,
+        "end_at": effective_end,
     }
 
 
@@ -107,6 +109,7 @@ def _inventory_state_for_game(
     twitch: Any,
     game_name: str,
     now: float,
+    config: dict[str, Any],
 ) -> dict[str, Any] | None:
     inventory = inventory_recovery._LAST_INVENTORY.get(id(twitch), {})
     campaigns = inventory_recovery._inventory_campaigns(inventory)
@@ -121,12 +124,18 @@ def _inventory_state_for_game(
 
     terminal_ids: set[str] = set()
     open_ids: set[str] = set()
+    labels: list[str] = []
     terminal_reasons: list[str] = []
-    blocked_until = now + _UNKNOWN_END_GRACE_SECONDS
+    blocked_until = 0.0
+    unknown_deadlines = config.setdefault(
+        "completed_game_drop_unknown_deadlines",
+        {},
+    )
 
     for campaign in matching:
         campaign_id = str(campaign.get("id") or "")
         label = str(campaign.get("name") or campaign_id or game_name)
+        labels.append(label)
         status = str(campaign.get("status") or "").upper()
         campaign_end = _parse_epoch(campaign.get("endAt"))
         if campaign_end is not None:
@@ -134,6 +143,13 @@ def _inventory_state_for_game(
                 blocked_until,
                 campaign_end + _EXPIRY_GRACE_SECONDS,
             )
+        elif campaign_id:
+            unknown_key = f"{target}:{campaign_id}"
+            deadline = unknown_deadlines.setdefault(
+                unknown_key,
+                now + _UNKNOWN_END_GRACE_SECONDS,
+            )
+            blocked_until = max(blocked_until, _safe_number(deadline))
 
         drops = [
             drop
@@ -176,11 +192,13 @@ def _inventory_state_for_game(
     return {
         "game": _game_label(matching[0].get("game"), game_name),
         "game_key": target,
+        "matching": matching,
         "open_ids": open_ids,
         "terminal_ids": terminal_ids,
         "blocked": bool(terminal_ids) and not open_ids and now < blocked_until,
         "blocked_until": blocked_until,
         "reason": "; ".join(dict.fromkeys(terminal_reasons)),
+        "labels": tuple(dict.fromkeys(labels)),
     }
 
 
@@ -250,6 +268,9 @@ def _active_catalogless_candidate(
     streamer = streamers[index]
     if not _mapped_to_game(config, streamer, game_key):
         return None
+    stream_games = catalogless._stream_game_values(streamer)
+    if stream_games and game_key not in stream_games:
+        return None
     if not configured._watchable(streamer):
         return None
     if _rejected(config, game_key, username, now):
@@ -258,7 +279,8 @@ def _active_catalogless_candidate(
 
 
 def _has_new_campaign(streamer: Any, terminal_ids: set[str]) -> bool:
-    return bool(_stream_campaign_ids(streamer).difference(terminal_ids))
+    ids = _stream_campaign_ids(streamer)
+    return bool(ids.difference(terminal_ids))
 
 
 def _hide_terminal_only_channels(
@@ -332,10 +354,10 @@ def _candidate_with_completed_inventory_guard(
 
     now = time.time()
     game_name = str(config.get("active_catalogless_game") or game_key)
-    state = _inventory_state_for_game(twitch, game_name, now)
+    state = _inventory_state_for_game(twitch, game_name, now, config)
 
-    # Directory ordering alone must not switch a provisional channel. The
-    # progress-verification layer decides when a channel has actually failed.
+    # Keep a provisional channel stable until progress verification explicitly
+    # rejects it, rather than switching whenever directory ordering changes.
     if state is None or not state["blocked"]:
         active = _active_catalogless_candidate(
             streamers,
@@ -345,8 +367,8 @@ def _candidate_with_completed_inventory_guard(
         )
         return active or candidate
 
-    # A completed old campaign must not hide a genuinely new overlapping
-    # campaign. Per-channel campaign metadata bypasses the guard immediately.
+    # A completed old campaign must not block a newly advertised campaign for
+    # the same game. Exact channel metadata wins as soon as Twitch provides it.
     if _has_new_campaign(streamers[index], state["terminal_ids"]):
         config.pop("completed_game_drop_guard_diagnostic", None)
         return candidate
@@ -359,12 +381,10 @@ def _candidate_with_completed_inventory_guard(
 
     if alternative is not None and alternative[2] == "game_drop":
         alt_id, alt_index, _ = alternative
-        if (
-            str(alt_id).startswith(catalogless._CATALOGLESS_PREFIX)
-            and _has_new_campaign(streamers[alt_index], state["terminal_ids"])
-        ):
-            config.pop("completed_game_drop_guard_diagnostic", None)
-            return alternative
+        if str(alt_id).startswith(catalogless._CATALOGLESS_PREFIX):
+            if _has_new_campaign(streamers[alt_index], state["terminal_ids"]):
+                config.pop("completed_game_drop_guard_diagnostic", None)
+                return alternative
 
     _clear_catalogless_state(config)
     config["completed_game_drop_guard"] = {
