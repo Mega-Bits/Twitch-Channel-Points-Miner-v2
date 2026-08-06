@@ -1,4 +1,4 @@
-"""Latch unverifiable catalogless game Drops for the current process."""
+"""Pause unverifiable catalogless game Drops for 24 hours by default."""
 
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ from TwitchChannelPointsMiner.TwitchChannelPointsMiner import TwitchChannelPoint
 
 logger = logging.getLogger(__name__)
 _PATCH_MARKER = "_catalogless_game_drop_session_latch_patch"
-_DEFAULT_RETRY_COOLDOWN = 0
+_DEFAULT_RETRY_COOLDOWN = 24 * 60 * 60
+_MAX_RETRY_COOLDOWN = 7 * 24 * 60 * 60
 _SESSION_SETTINGS: dict[int, dict[str, int]] = {}
 
 
@@ -119,14 +120,13 @@ def _install_runtime_options() -> None:
         ) -> Any:
             retry_cooldown = max(
                 0,
-                min(int(drop_game_retry_cooldown), 6 * 60 * 60),
+                min(int(drop_game_retry_cooldown), _MAX_RETRY_COOLDOWN),
             )
             _SESSION_SETTINGS[id(self.twitch)] = {
                 "retry_cooldown": retry_cooldown,
             }
-            # The older wrapper clamps its own value to at least 60 seconds.
-            # Pass a harmless valid value there; runtime._settings is replaced
-            # above and supplies the actual zero-or-positive session setting.
+            # The older wrapper caps its own setting at six hours. Its stored
+            # value is intentionally overridden by _settings_with_session_latch.
             inner_cooldown = retry_cooldown if retry_cooldown > 0 else 60
             try:
                 return current_run(
@@ -161,7 +161,7 @@ def _install_runtime_options() -> None:
 
 
 def apply_patch() -> None:
-    """Make a failed catalogless game stay disabled until a positive signal."""
+    """Use a 24-hour in-memory retry pause for unverifiable game Drops."""
     if getattr(runtime, _PATCH_MARKER, False):
         return
 
