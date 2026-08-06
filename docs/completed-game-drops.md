@@ -2,15 +2,15 @@
 
 The catalogless `drop_games` fallback searches Twitch's game directory with the `DROPS_ENABLED` filter when the personal campaign catalog is unavailable. Twitch can continue returning channels after the current account has already completed the active campaign, and it can temporarily omit the currently watched channel from a paginated directory response.
 
-Version 2.4.2 handles both cases without persisting Drop progress or completion state.
+Version 2.4.3 handles this without persisting Drop progress or completion state and without rotating continuously through an unverifiable game.
 
 ## No local progress or completion database
 
-The miner does not write Drop minutes, percentages, claimed rewards, completed campaigns, or inferred campaign state to disk.
+The miner does not write Drop minutes, percentages, claimed rewards, completed campaigns, inferred campaign state, failed candidates, or retry pauses to disk.
 
 The current Twitch inventory and campaign data remain authoritative. Completing or claiming a Drop outside the miner cannot leave behind a local completion record that overrides Twitch later.
 
-The runtime pause described below exists only in memory. Restarting the miner clears it.
+All fallback verification and failure state exists only in memory. Restarting the miner clears it, including a running 24-hour pause.
 
 ## Live inventory terminal states
 
@@ -23,21 +23,20 @@ When Twitch still returns a matching inventory campaign, the game-directory fall
 
 The normal inventory claim path remains responsible for claiming completed rewards.
 
-## Runtime-only circuit breaker
+## Runtime-only 24-hour circuit breaker
 
-Twitch can remove a completed campaign from `dropCampaignsInProgress`. In that state, absence from inventory is not treated as proof of either completion or availability.
+Twitch can remove a completed campaign from `dropCampaignsInProgress`. When the inventory and campaign catalog are unavailable, absence from those sources is not proof of either completion or availability.
 
-The miner provisionally tests channels from the live `DROPS_ENABLED` game directory and requires real Twitch-reported Drop progress. By default:
+The miner therefore provisionally tests channels from the live `DROPS_ENABLED` game directory and requires real Twitch-reported Drop progress. By default:
 
 1. each candidate receives the configured `drop_progress_timeout`;
 2. a candidate without progress is rejected by the existing progress verifier;
-3. after three different candidates fail for the same game, catalogless discovery for that game is paused for 30 minutes;
+3. after three different candidates fail for the same game, catalogless discovery for that game is paused for 24 hours;
 4. normal priority or started-Drop completion can use the slot during the pause;
-5. after the pause, the miner performs a fresh live Twitch check.
+5. after 24 hours, the miner performs a fresh live Twitch check;
+6. a fully identified real Twitch campaign clears the pause immediately.
 
-The pause and failure history are memory-only and are never written to disk.
-
-A fully identified real campaign from Twitch immediately bypasses and clears the runtime pause.
+This avoids short retry loops when the account already completed the Drop but Twitch still lists globally Drops-enabled channels for the game.
 
 ## Configuration
 
@@ -48,13 +47,15 @@ twitch_miner.mine(
     drop_progress_timeout=240,
     drop_candidate_cooldown=900,
     drop_game_failure_limit=3,
-    drop_game_retry_cooldown=1800,
+    drop_game_retry_cooldown=86400,
 )
 ```
 
 - `drop_game_failure_limit` controls how many different catalogless candidates may fail before the game is paused. Set it to `0` to disable the circuit breaker.
-- `drop_game_retry_cooldown` controls the in-memory pause in seconds and is clamped between 60 seconds and six hours.
-- Neither setting persists across restarts.
+- `drop_game_retry_cooldown=86400` is the default and retries after 24 hours.
+- Positive values are accepted up to seven days.
+- Setting `drop_game_retry_cooldown=0` keeps the game disabled for the rest of the current miner process instead.
+- No setting or pause is persisted across restarts.
 
 ## Stable provisional selection
 
@@ -75,15 +76,15 @@ This prevents the first slot from alternating between `Game drop` and `Priority`
 
 ## Example logs
 
-After three different Rust candidates produce no Drop progress:
+After three different Rust candidates produce no Drop progress with the default configuration:
 
 ```text
-Pausing catalogless Drop discovery for Rust for 1800 seconds after 3 different
+Pausing catalogless Drop discovery for Rust for 86400 seconds after 3 different
 DROPS_ENABLED channels produced no Twitch-reported progress; no progress or
 completion state is written to disk
 ```
 
-When the in-memory pause expires:
+After the pause expires:
 
 ```text
 Retrying catalogless Drop discovery for rust after the in-memory pause expired
