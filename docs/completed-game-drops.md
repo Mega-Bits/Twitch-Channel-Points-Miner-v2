@@ -1,12 +1,20 @@
-# Completed explicit game Drops
+# Completed and unavailable explicit game Drops
 
-The catalogless `drop_games` fallback searches Twitch's game directory with the `DROPS_ENABLED` filter when the personal campaign catalog is unavailable. This can still return channels after the account has already completed the active campaign for that game.
+The catalogless `drop_games` fallback searches Twitch's game directory with the `DROPS_ENABLED` filter when the personal campaign catalog is unavailable. Twitch can continue returning channels after the current account has already completed the active campaign, and it can temporarily omit the currently watched channel from a paginated directory response.
 
-Version 2.4.1 cross-checks this fallback against the latest Twitch inventory before assigning the Drop slot.
+Version 2.4.2 handles both cases without persisting Drop progress or completion state.
 
-## Terminal inventory states
+## No local progress or completion database
 
-The game-directory fallback is skipped when the matching inventory campaign has no reward that still needs watching. This includes:
+The miner does not write Drop minutes, percentages, claimed rewards, completed campaigns, or inferred campaign state to disk.
+
+The current Twitch inventory and campaign data remain authoritative. Completing or claiming a Drop outside the miner cannot leave behind a local completion record that overrides Twitch later.
+
+The runtime pause described below exists only in memory. Restarting the miner clears it.
+
+## Live inventory terminal states
+
+When Twitch still returns a matching inventory campaign, the game-directory fallback is skipped if that campaign has no reward that still needs watching. This includes:
 
 - campaign status `COMPLETED`, `CLAIMED`, or `EXPIRED`;
 - every reward already claimed;
@@ -15,31 +23,70 @@ The game-directory fallback is skipped when the matching inventory campaign has 
 
 The normal inventory claim path remains responsible for claiming completed rewards.
 
-## Expiry handling
+## Runtime-only circuit breaker
 
-A completed campaign suppresses the game-only fallback until its Twitch end time plus a short grace period. The guard is not permanent. After the deadline it permits discovery again so a future campaign for the same game cannot remain blocked forever.
+Twitch can remove a completed campaign from `dropCampaignsInProgress`. In that state, absence from inventory is not treated as proof of either completion or availability.
 
-When Twitch exposes a different campaign ID on a Drops-enabled channel, that new ID bypasses the guard immediately. This supports overlapping old and new campaigns for the same game.
+The miner provisionally tests channels from the live `DROPS_ENABLED` game directory and requires real Twitch-reported Drop progress. By default:
+
+1. each candidate receives the configured `drop_progress_timeout`;
+2. a candidate without progress is rejected by the existing progress verifier;
+3. after three different candidates fail for the same game, catalogless discovery for that game is paused for 30 minutes;
+4. normal priority or started-Drop completion can use the slot during the pause;
+5. after the pause, the miner performs a fresh live Twitch check.
+
+The pause and failure history are memory-only and are never written to disk.
+
+A fully identified real campaign from Twitch immediately bypasses and clears the runtime pause.
+
+## Configuration
+
+```python
+twitch_miner.mine(
+    streamers=[...],
+    drop_games=["Rust", "Marvel Rivals"],
+    drop_progress_timeout=240,
+    drop_candidate_cooldown=900,
+    drop_game_failure_limit=3,
+    drop_game_retry_cooldown=1800,
+)
+```
+
+- `drop_game_failure_limit` controls how many different catalogless candidates may fail before the game is paused. Set it to `0` to disable the circuit breaker.
+- `drop_game_retry_cooldown` controls the in-memory pause in seconds and is clamped between 60 seconds and six hours.
+- Neither setting persists across restarts.
 
 ## Stable provisional selection
 
-A provisional game-directory channel stays selected while progress verification is pending. A directory reorder alone no longer causes a stop/start cycle.
+A provisional game-directory channel stays selected while progress verification is pending, even when Twitch changes pagination or viewer ordering and temporarily omits that channel from the latest `DROPS_ENABLED` result page.
+
+When this happens, the miner directly confirms that the active channel is still live and still streaming the configured game. It restores the provisional assignment only after that fresh check.
 
 The channel changes only when:
 
 - Twitch reports no Drop progress before `drop_progress_timeout`;
-- the channel goes offline;
+- the progress verifier explicitly rejects the channel;
+- the channel genuinely goes offline;
 - the channel changes game;
-- the channel becomes ineligible;
-- the inventory proves that the campaign is complete or no longer finishable.
+- a real campaign handoff selects a campaign-specific channel;
+- current live inventory data proves the game is complete or no longer finishable.
 
-## Example log
+This prevents the first slot from alternating between `Game drop` and `Priority` during ordinary directory refreshes.
+
+## Example logs
+
+After three different Rust candidates produce no Drop progress:
 
 ```text
-Skipping game-directory Drop fallback for Rust because inventory is terminal:
-Global Warfare 4: completed. Rechecking automatically; this guard expires at
-2026-08-06T16:10:00+00:00 and is bypassed immediately when Twitch advertises a
-different campaign ID
+Pausing catalogless Drop discovery for Rust for 1800 seconds after 3 different
+DROPS_ENABLED channels produced no Twitch-reported progress; no progress or
+completion state is written to disk
 ```
 
-No additional configuration is required.
+When the in-memory pause expires:
+
+```text
+Retrying catalogless Drop discovery for rust after the in-memory pause expired
+```
+
+No local Drop-state file is created.
