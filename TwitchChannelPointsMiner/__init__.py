@@ -6,6 +6,7 @@ del _Path
 
 from .catalogless_game_drop_patch import apply_patch as _apply_catalogless_game_drop_patch
 from .channel_points_context_patch import apply_patch as _apply_channel_points_context_patch
+from .completed_game_drop_guard_patch import apply_patch as _apply_completed_game_drop_guard_patch
 from .configured_drop_game_priority_patch import apply_patch as _apply_configured_drop_game_priority_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
 from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
@@ -53,12 +54,14 @@ _apply_status_dashboard_enhancements_patch()
 _apply_status_dashboard_drop_reason_patch()
 _apply_catalogless_game_drop_patch()
 _apply_game_drop_handoff_patch()
+_apply_completed_game_drop_guard_patch()
 _apply_game_drop_progress_verification_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
 del _apply_catalogless_game_drop_patch
 del _apply_channel_points_context_patch
+del _apply_completed_game_drop_guard_patch
 del _apply_configured_drop_game_priority_patch
 del _apply_discord_format_patch
 del _apply_drop_claim_game_patch
