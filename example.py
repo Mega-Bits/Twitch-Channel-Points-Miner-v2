@@ -179,6 +179,12 @@ twitch_miner.mine(
     ],
     # Maximum Drops-enabled directory candidates requested per game (1-30).
     drop_game_limit=10,
+    # Generated directory channels must produce a real Twitch Drop progress
+    # increase within this many seconds. Use 0 to disable verification.
+    drop_progress_timeout=240,
+    # Channels that fail progress verification are skipped for this many
+    # seconds before they may be tested again for the same game/campaign.
+    drop_candidate_cooldown=900,
     # Finish active campaigns Twitch already lists as in progress, even when
     # their game is not present in drop_games. Untouched and expired campaigns
     # are ignored. Leave False to farm only explicitly configured games.
