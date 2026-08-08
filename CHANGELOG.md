@@ -2,6 +2,20 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.4.4
+
+### Added
+
+- An otherwise idle second watch slot can now farm a second Drop from a different game when no configured-list streamer is online.
+- The secondary slot supports known explicit campaigns, catalogless `DROPS_ENABLED` game-directory candidates, and started unfinished campaigns from another game.
+- Generated secondary Drop channels receive independent progress verification and participate in the existing per-game 24-hour catalogless circuit breaker without disturbing slot 1.
+
+### Safety
+
+- A configured-list streamer becoming online immediately prevents the idle-slot Drop fallback so normal list priority can reclaim slot 2.
+- Slot 2 never farms another campaign for the same normalized game as slot 1.
+- Secondary catalogless selection remains stable across directory pagination and viewer-order changes and is not persisted to disk.
+
 ## 2.3.7
 
 ### Added

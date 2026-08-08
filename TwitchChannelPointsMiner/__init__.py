@@ -16,6 +16,7 @@ from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_gam
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
 from .drop_gql_queries_patch import apply_patch as _apply_drop_gql_queries_patch
 from .drop_priority_order_patch import apply_patch as _apply_drop_priority_order_patch
+from .dual_game_drop_idle_slot_patch import apply_patch as _apply_dual_game_drop_idle_slot_patch
 from .explicit_game_drop_discovery_patch import apply_patch as _apply_explicit_game_drop_discovery_patch
 from .finish_started_drops_patch import apply_patch as _apply_finish_started_drops_patch
 from .fork_branding_patch import apply_patch as _apply_fork_branding_patch
@@ -60,6 +61,7 @@ _apply_completed_game_drop_guard_patch()
 _apply_catalogless_game_drop_runtime_patch()
 _apply_catalogless_game_drop_session_latch_patch()
 _apply_game_drop_progress_verification_patch()
+_apply_dual_game_drop_idle_slot_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
@@ -75,6 +77,7 @@ del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
 del _apply_drop_gql_queries_patch
 del _apply_drop_priority_order_patch
+del _apply_dual_game_drop_idle_slot_patch
 del _apply_explicit_game_drop_discovery_patch
 del _apply_finish_started_drops_patch
 del _apply_fork_branding_patch
