@@ -27,6 +27,7 @@ from .game_drop_retry_failover_patch import apply_patch as _apply_game_drop_retr
 from .inventory_campaign_recovery_patch import apply_patch as _apply_inventory_campaign_recovery_patch
 from .playback_access_token_patch import apply_patch as _apply_playback_access_token_patch
 from .status_dashboard_patch import apply_patch as _apply_status_dashboard_patch
+from .status_dashboard_selector_rebind_patch import apply_patch as _apply_status_dashboard_selector_rebind_patch
 from .status_dashboard_webhook_patch import apply_patch as _apply_status_dashboard_webhook_patch
 from .status_dashboard_enhancements_patch import apply_patch as _apply_status_dashboard_enhancements_patch
 from .status_dashboard_drop_reason_patch import apply_patch as _apply_status_dashboard_drop_reason_patch
@@ -65,8 +66,10 @@ _apply_game_drop_progress_verification_patch()
 _apply_dual_game_drop_idle_slot_patch()
 _apply_drop_completion_game_drop_arbitration_patch()
 _apply_game_drop_retry_failover_patch()
-# Watch notifications must wrap the final authoritative selector. Applying this
-# earlier lets later Drop selector patches bypass notification synchronization.
+# The dashboard and watch notifications must both wrap the final authoritative
+# selector. Earlier wrappers remain useful for lifecycle/inventory hooks, while
+# this final rebind prevents later Drop selectors from bypassing watch updates.
+_apply_status_dashboard_selector_rebind_patch()
 _apply_watch_notifications_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
@@ -99,6 +102,7 @@ del _apply_status_dashboard_enhancements_patch
 del _apply_status_dashboard_error_safety_patch
 del _apply_status_dashboard_identity_patch
 del _apply_status_dashboard_patch
+del _apply_status_dashboard_selector_rebind_patch
 del _apply_status_dashboard_webhook_patch
 del _apply_stream_state_transition_patch
 del _apply_watch_notifications_patch
