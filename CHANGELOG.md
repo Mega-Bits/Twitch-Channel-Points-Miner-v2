@@ -2,6 +2,15 @@
 
 All notable changes to the Mega-Bits fork are documented here.
 
+## 2.4.5
+
+### Fixed
+
+- Started `finish_started_drops` campaigns no longer compete with an explicit game Drop while that game's `DROPS_ENABLED` candidates are still being verified.
+- Temporary gaps between generated game-Drop candidates no longer cause the primary watch slot to jump into Drop completion and immediately back to the configured game.
+- The idle second Drop slot is reserved for another explicit configured game only; started-Drop completion is no longer placed beside an active explicit game Drop.
+- Drop completion becomes eligible again when the explicit game's catalogless circuit breaker opens or no Drops-enabled candidate remains.
+
 ## 2.4.4
 
 ### Added
