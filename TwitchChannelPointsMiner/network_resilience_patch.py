@@ -83,7 +83,8 @@ def _internet_connection_available(
     else:
         targets = ((host, port),)
 
-    probe_timeout = max(0.25, float(timeout))
+    total_timeout = max(0.25, float(timeout))
+    probe_timeout = max(0.25, total_timeout / len(targets))
     for target_host, target_port in targets:
         try:
             with socket.create_connection(
