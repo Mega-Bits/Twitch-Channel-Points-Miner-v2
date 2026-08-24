@@ -4,6 +4,7 @@ from pathlib import Path as _Path
 __version__ = _Path(__file__).with_name("VERSION").read_text(encoding="utf-8").strip()
 del _Path
 
+from .network_resilience_patch import apply_patch as _apply_network_resilience_patch
 from .catalogless_game_drop_patch import apply_patch as _apply_catalogless_game_drop_patch
 from .catalogless_game_drop_runtime_patch import apply_patch as _apply_catalogless_game_drop_runtime_patch
 from .catalogless_game_drop_session_latch_patch import apply_patch as _apply_catalogless_game_drop_session_latch_patch
@@ -38,6 +39,7 @@ from .stream_state_transition_patch import apply_patch as _apply_stream_state_tr
 from .watch_notifications_patch import apply_patch as _apply_watch_notifications_patch
 from .watch_streak_persistence_patch import apply_patch as _apply_watch_streak_persistence_patch
 
+_apply_network_resilience_patch()
 _apply_fork_branding_patch()
 _apply_drop_gql_queries_patch()
 _apply_channel_points_context_patch()
@@ -74,6 +76,7 @@ _apply_watch_notifications_patch()
 _apply_status_dashboard_clock_patch()
 _apply_status_dashboard_error_safety_patch()
 _apply_status_dashboard_identity_patch()
+del _apply_network_resilience_patch
 del _apply_catalogless_game_drop_patch
 del _apply_catalogless_game_drop_runtime_patch
 del _apply_catalogless_game_drop_session_latch_patch
