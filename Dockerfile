@@ -1,44 +1,19 @@
 FROM python:3.10-bookworm
 
-ARG BUILDX_QEMU_ENV
-
 WORKDIR /usr/src/app
 
 COPY ./requirements.txt ./
 
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
-
-RUN pip install --upgrade pip
-
+# Pillow needs C headers on 32-bit ARM, but the miner doesn't need a native
+# pandas/numpy build, legacy cryptography 3.3.2, or OS-wide build toolchains.
+# Retain the libjpeg runtime library after removing development packages.
 RUN apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
-    gcc \
-    libffi-dev \
-    rustc \
-    zlib1g-dev \
-    libjpeg-dev \
-    libssl-dev \
-    libblas-dev \
-    liblapack-dev \
-    make \
-    patch \
-    cmake \
-    automake \
-    ninja-build \
-    g++ \
-    subversion \
-    python3-dev \
-  && if [ "${BUILDX_QEMU_ENV}" = "true" ] && [ "$(getconf LONG_BIT)" = "32" ]; then \
-        pip install -U cryptography==3.3.2; \
-     fi \
-  && pip install -r requirements.txt \
-  && pip cache purge \
-  && apt-get remove -y gcc rustc \
-  && apt-get autoremove -y \
-  && apt-get autoclean -y \
-  && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/* \
-  && rm -rf /usr/share/doc/*
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       gcc make patch zlib1g-dev libjpeg-dev libjpeg62-turbo \
+  && python -m pip install --no-cache-dir -r requirements.txt \
+  && apt-get purge -y --auto-remove gcc make zlib1g-dev libjpeg-dev \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
 ADD ./TwitchChannelPointsMiner ./TwitchChannelPointsMiner
 COPY ./patches/drop-campaign-state-machine.patch /tmp/drop-campaign-state-machine.patch

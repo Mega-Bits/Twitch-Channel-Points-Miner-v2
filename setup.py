@@ -28,13 +28,16 @@ setuptools.setup(
         "python-dateutil",
         "emoji",
         "millify",
-        "pre-commit",
         "colorama",
         "flask",
         "irc",
-        "pandas",
         "pytz",
+        "validators",
     ],
+    extras_require={
+        "dev": ["pre-commit"],
+        "analytics-pandas": ["pandas"],
+    },
     long_description=read("README.md"),
     long_description_content_type="text/markdown",
     classifiers=[

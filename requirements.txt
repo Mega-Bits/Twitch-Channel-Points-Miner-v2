@@ -4,10 +4,8 @@ pillow
 python-dateutil
 emoji
 millify
-pre-commit
 colorama
 flask
 irc
-pandas
 pytz
 validators
