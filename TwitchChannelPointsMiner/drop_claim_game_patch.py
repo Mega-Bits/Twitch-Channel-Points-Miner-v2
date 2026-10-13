@@ -21,7 +21,8 @@ _DROP_GAMES: dict[str, str] = {}
 # specific Drop instance, never to the game (which may get a new campaign).
 _CLAIM_ATTEMPTS: dict[tuple[int, str], dict[str, Any]] = {}
 _RETRY_DELAYS = (5 * 60, 15 * 60, 30 * 60, 60 * 60)
-_CONFIRMED_HOLD_SECONDS = 6 * 60 * 60
+_ACCEPTED_RECHECK_SECONDS = 30 * 60
+_ALREADY_CLAIMED_HOLD_SECONDS = 6 * 60 * 60
 _IN_FLIGHT_SECONDS = 2 * 60
 _GAME_SUFFIX = re.compile(r"(?:\s*·\s*)?Game:\s*(?P<game>.+?)\s*$", re.IGNORECASE)
 
@@ -197,10 +198,15 @@ def _finish_claim(
 ) -> int:
     success = status is not None
     retries = 0 if success else failures + 1
-    delay = (
-        _CONFIRMED_HOLD_SECONDS if success else
-        _RETRY_DELAYS[min(retries - 1, len(_RETRY_DELAYS) - 1)]
-    )
+    if status == "DROP_INSTANCE_ALREADY_CLAIMED":
+        delay = _ALREADY_CLAIMED_HOLD_SECONDS
+    elif status == "ELIGIBLE_FOR_ALL":
+        # Twitch accepted the mutation, but its inventory may remain stale.
+        # Recheck sooner than an already-claimed instance so a transient
+        # success status cannot hide an unclaimed reward for many hours.
+        delay = _ACCEPTED_RECHECK_SECONDS
+    else:
+        delay = _RETRY_DELAYS[min(retries - 1, len(_RETRY_DELAYS) - 1)]
     with _LOCK:
         _CLAIM_ATTEMPTS[(id(client), instance)] = {
             "next_attempt": time.monotonic() + delay,
