@@ -11,7 +11,6 @@ ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 RUN pip install --upgrade pip
 
 RUN apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
   && DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends \
     gcc \
     libffi-dev \
