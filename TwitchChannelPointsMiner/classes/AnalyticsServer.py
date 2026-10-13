@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from threading import Thread
 
-import pandas as pd
 from flask import Flask, Response, cli, render_template, request
 
 from TwitchChannelPointsMiner.classes.Settings import Settings
@@ -25,6 +24,13 @@ def streamers_available():
 
 
 def aggregate(df, freq="30Min"):
+    """Legacy DataFrame aggregation, not used by the analytics HTTP endpoints.
+
+    Projects calling this helper directly can opt into pandas separately.
+    The miner's web interface and Docker image do not need pandas.
+    """
+    import pandas as pd
+
     df_base_events = df[(df.z == "Watch") | (df.z == "Claim")]
     df_other_events = df[(df.z != "Watch") & (df.z != "Claim")]
 
@@ -36,12 +42,16 @@ def aggregate(df, freq="30Min"):
         [pd.Grouper(freq=freq, key="datetime"), "z"]).max()
     oe = oe.reset_index()
 
-    result = pd.concat([be, oe])
-    return result
+    return pd.concat([be, oe])
 
 
 def filter_datas(start_date, end_date, datas):
-    # Note: https://stackoverflow.com/questions/4676195/why-do-i-need-to-multiply-unix-timestamps-by-1000-in-javascript
+    """Filter the analytics chart payload without native pandas/numpy builds.
+
+    All values are already JSON event records with millisecond timestamps.
+    Keeping the original date boundaries, ascending ordering and no-stream
+    fallback does not require converting them into DataFrames.
+    """
     start_date = (
         datetime.strptime(start_date, "%Y-%m-%d").timestamp() * 1000
         if start_date is not None
@@ -53,52 +63,36 @@ def filter_datas(start_date, end_date, datas):
         else datetime.now()
     ).replace(hour=23, minute=59, second=59).timestamp() * 1000
 
-    original_series = datas["series"]
+    original_series = datas.get("series") or []
+    datas["series"] = sorted(
+        (
+            dict(event) for event in original_series
+            if start_date <= event["x"] <= end_date
+        ),
+        key=lambda event: (event["x"], event["y"]),
+    )
 
-    if "series" in datas:
-        df = pd.DataFrame(datas["series"])
-        df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-
-        df = df[(df.x >= start_date) & (df.x <= end_date)]
-
-        datas["series"] = (
-            df.drop(columns="datetime")
-            .sort_values(by=["x", "y"], ascending=True)
-            .to_dict("records")
+    # If the selected interval has no activity, show the balance as a flat
+    # line. Without any earlier balance, begin at zero instead of crashing.
+    if not datas["series"]:
+        previous = (
+            event for event in original_series
+            if 0 <= event["x"] <= start_date
         )
-    else:
-        datas["series"] = []
+        last = max(previous, key=lambda event: (event["x"], event["y"]), default=None)
+        balance = last["y"] if last is not None else 0
+        datas["series"] = [
+            {"x": start_date, "y": balance, "z": "No Stream"},
+            {"x": end_date, "y": balance, "z": "No Stream"},
+        ]
 
-    # If no data is found within the timeframe, that usually means the streamer hasn't streamed within that timeframe
-    # We create a series that shows up as a straight line on the dashboard, with 'No Stream' as labels
-    if len(datas["series"]) == 0:
-        new_end_date = start_date
-        new_start_date = 0
-        df = pd.DataFrame(original_series)
-        df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-
-        # Attempt to get the last known balance from before the provided timeframe
-        df = df[(df.x >= new_start_date) & (df.x <= new_end_date)]
-        last_balance = df.drop(columns="datetime").sort_values(
-            by=["x", "y"], ascending=True).to_dict("records")[-1]['y']
-
-        datas["series"] = [{'x': start_date, 'y': last_balance, 'z': 'No Stream'}, {
-            'x': end_date, 'y': last_balance, 'z': 'No Stream'}]
-
-    if "annotations" in datas:
-        df = pd.DataFrame(datas["annotations"])
-        df["datetime"] = pd.to_datetime(df.x // 1000, unit="s")
-
-        df = df[(df.x >= start_date) & (df.x <= end_date)]
-
-        datas["annotations"] = (
-            df.drop(columns="datetime")
-            .sort_values(by="x", ascending=True)
-            .to_dict("records")
-        )
-    else:
-        datas["annotations"] = []
-
+    datas["annotations"] = sorted(
+        (
+            dict(event) for event in (datas.get("annotations") or [])
+            if start_date <= event["x"] <= end_date
+        ),
+        key=lambda event: event["x"],
+    )
     return datas
 
 
