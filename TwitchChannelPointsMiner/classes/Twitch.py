@@ -524,40 +524,65 @@ class Twitch(object):
                             continue
                         BroadcastQualities = responseBroadcastQualities.text
 
-                        # Just takes the last line, which should be the URL for the lowest quality
-                        BroadcastLowestQualityURL = BroadcastQualities.split(
-                            "\n")[-1]
-                        if not validators.url(BroadcastLowestQualityURL):
+                        # HLS playlists contain metadata, blank lines and URLs.
+                        # Select the lowest advertised rendition as before, but
+                        # do not assume that the last physical line is a URL.
+                        quality_urls = [
+                            line.strip()
+                            for line in BroadcastQualities.splitlines()
+                            if validators.url(line.strip())
+                        ]
+                        if not quality_urls:
+                            logger.warning("No valid HLS quality URL for %s", streamers[index])
                             continue
+                        BroadcastLowestQualityURL = quality_urls[-1]
 
-                        # Get list of video URLs
                         responseStreamURLList = requests.get(
                             BroadcastLowestQualityURL,
                             headers={"User-Agent": self.user_agent},
                             timeout=20,
-                        )  # timeout=60
+                        )
                         logger.debug(
                             f"Send BroadcastLowestQualityURL request for {streamers[index]} - Status code: {responseStreamURLList.status_code}"
                         )
                         if responseStreamURLList.status_code != 200:
                             continue
-                        StreamURLList = responseStreamURLList.text
 
-                        # Just takes the last line, which should be the URL for the lowest quality
-                        StreamLowestQualityURL = StreamURLList.split("\n")[-2]
-                        if not validators.url(StreamLowestQualityURL):
+                        segment_urls = [
+                            line.strip()
+                            for line in responseStreamURLList.text.splitlines()
+                            if validators.url(line.strip())
+                        ]
+                        if not segment_urls:
+                            logger.warning("No HLS segments found for %s", streamers[index])
                             continue
 
-                        # Perform a HEAD request to simulate watching the stream
-                        responseStreamLowestQualityURL = requests.head(
-                            StreamLowestQualityURL,
-                            headers={"User-Agent": self.user_agent},
-                            timeout=20,
-                        )  # timeout=60
-                        logger.debug(
-                            f"Send StreamLowestQualityURL request for {streamers[index]} - Status code: {responseStreamLowestQualityURL.status_code}"
+                        # Default: retain the original single HEAD request.
+                        # Set TWITCH_HLS_HEAD_MODE=all to test requesting each
+                        # current playlist segment, as in DevilXD's miner.
+                        # Keep the existing Spade minute-watched event in both modes.
+                        import os
+                        head_mode = os.environ.get("TWITCH_HLS_HEAD_MODE", "single").lower()
+                        urls_to_check = (
+                            segment_urls[:15] if head_mode == "all"
+                            else segment_urls[-1:]
                         )
-                        if responseStreamLowestQualityURL.status_code != 200:
+                        all_segments_ok = True
+                        for segment_url in urls_to_check:
+                            head_response = requests.head(
+                                segment_url,
+                                headers={"User-Agent": self.user_agent},
+                                timeout=20,
+                                allow_redirects=True,
+                            )
+                            logger.debug(
+                                "HLS HEAD for %s - Status code: %s",
+                                streamers[index], head_response.status_code,
+                            )
+                            if head_response.status_code != 200:
+                                all_segments_ok = False
+                                break
+                        if not all_segments_ok:
                             continue
                         # End of fix for 2024/5 API Change
                         ##################################
