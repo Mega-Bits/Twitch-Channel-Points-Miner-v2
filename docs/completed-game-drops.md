@@ -112,6 +112,19 @@ may refer to account linking or whether a channel can offer a campaign rather
 than whether this viewer already claimed a specific reward. Use the
 account-specific `isClaimed` and available inventory progress as evidence.
 
+When Twitch returns an active campaign but omits its individual Drop details,
+that response is **incomplete**, not proof of a claimed reward. The selector
+must not suppress Drop discovery on that basis.
+
+When finishing an already-started campaign through
+`finish_started_drops=True`, the central selector does not count a generic
+`DROPS_ENABLED` game-directory channel as proof of eligibility for that
+particular campaign. A configured/list channel or a campaign-specific
+`drop_fallback` channel must pass the existing exact campaign ID and game
+checks. Existing generic directory completion slots are released.
+This does not change the explicit `drop_games` path or its normal progress
+verification.
+
 When Twitch no longer returns the campaign at all, absence is **unknown**, not
 proof of a claimed reward. The normal live progress-verification and runtime
 retry circuit breaker still apply. No persistent claimed-state cache is added.
