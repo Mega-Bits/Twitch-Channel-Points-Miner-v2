@@ -261,6 +261,28 @@ def _claim_drop_with_game(self: Twitch, drop: Any) -> bool:
     return False
 
 
+def _clear_confirmed_claims(client: Any, inventory: Any) -> None:
+    """Discard throttle state only when Twitch confirms a particular claim.
+
+    An absent campaign or temporary inventory error is not claim confirmation.
+    """
+    if not isinstance(inventory, dict):
+        return
+    for campaign in inventory.get("dropCampaignsInProgress") or []:
+        if not isinstance(campaign, dict):
+            continue
+        for drop in campaign.get("timeBasedDrops") or []:
+            if not isinstance(drop, dict):
+                continue
+            progress = drop.get("self")
+            if not isinstance(progress, dict) or progress.get("isClaimed") is not True:
+                continue
+            instance = progress.get("dropInstanceID")
+            if instance:
+                with _LOCK:
+                    _CLAIM_ATTEMPTS.pop((id(client), str(instance)), None)
+
+
 def apply_patch() -> None:
     """Install Drop-to-game tracking and game-aware claim formatting."""
     if getattr(Twitch, _PATCH_MARKER, False):
@@ -295,22 +317,7 @@ def apply_patch() -> None:
     def get_inventory_with_games(self: Twitch) -> Any:
         inventory = original_get_inventory(self)
         _remember_inventory(inventory)
-        # Inventory confirmation clears per-instance suppression. A new Drop
-        # instance is a different key and can always be claimed normally.
-        if isinstance(inventory, dict):
-            for campaign in inventory.get("dropCampaignsInProgress") or []:
-                if not isinstance(campaign, dict):
-                    continue
-                for inventory_drop in campaign.get("timeBasedDrops") or []:
-                    if not isinstance(inventory_drop, dict):
-                        continue
-                    progress = inventory_drop.get("self")
-                    if not isinstance(progress, dict) or progress.get("isClaimed") is not True:
-                        continue
-                    instance = progress.get("dropInstanceID")
-                    if instance:
-                        with _LOCK:
-                            _CLAIM_ATTEMPTS.pop((id(self), str(instance)), None)
+        _clear_confirmed_claims(self, inventory)
         return inventory
 
     global _ORIGINAL_DROP_FORMATTER
