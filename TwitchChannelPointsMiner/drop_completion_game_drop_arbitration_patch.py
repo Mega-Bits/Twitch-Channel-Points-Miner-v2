@@ -301,7 +301,11 @@ def _completion_candidate(
         indexes = [
             index
             for index, streamer in enumerate(streamers)
-            if index not in excluded_indexes and configured._eligible_for_campaign(streamer, campaign)
+            if index not in excluded_indexes
+            # A broad DROPS_ENABLED directory entry is not evidence that the
+            # account can earn this specific already-started campaign.
+            and _source(streamer) != "game_drop"
+            and configured._eligible_for_campaign(streamer, campaign)
         ]
         if not indexes:
             continue
@@ -509,6 +513,14 @@ def _observe_slot(
     if state.get("kind") != "game_drop" or not state.get("synthetic"):
         index = _streamer_index(streamers, str(state.get("username") or ""))
         if index is None:
+            _clear_slot(config, name)
+            return None, None
+        if state.get("kind") == "drop_completion" and _source(streamers[index]) == "game_drop":
+            logger.info(
+                "Releasing generic Drops directory channel %s from started campaign %s; specific eligibility is unverified",
+                state.get("username"),
+                state.get("campaign_id"),
+            )
             _clear_slot(config, name)
             return None, None
         campaign = (config.get("campaigns_by_id", {}) or {}).get(state.get("campaign_id"))
