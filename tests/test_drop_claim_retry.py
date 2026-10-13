@@ -108,7 +108,7 @@ class ClaimRetryTests(TestCase):
             ]
             self.assertEqual(len(emitted), 1)
             self.assertIn("Claim", emitted[0].args[0])
-            self.now += claims._CONFIRMED_HOLD_SECONDS + 1
+            self.now += claims._ACCEPTED_RECHECK_SECONDS + 1
             self.assertTrue(self._claim())
             self.assertEqual(self.client.post_gql_request.call_count, 2)
 
@@ -125,6 +125,13 @@ class ClaimRetryTests(TestCase):
                 if call.kwargs.get("extra", {}).get("event") == Events.DROP_CLAIM
             ]
             self.assertEqual(emitted, [])
+            self.now += claims._ACCEPTED_RECHECK_SECONDS + 1
+            self.assertTrue(self._claim())
+            # The stronger already-claimed status holds for six hours.
+            self.client.post_gql_request.assert_called_once()
+            self.now += claims._ALREADY_CLAIMED_HOLD_SECONDS
+            self.assertTrue(self._claim())
+            self.assertEqual(self.client.post_gql_request.call_count, 2)
 
     def test_rejected_claim_backoff_and_sanitized_status(self):
         self.client.post_gql_request.return_value = _response(
