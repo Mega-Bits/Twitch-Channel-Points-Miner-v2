@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from TwitchChannelPointsMiner import catalogless_game_drop_patch as catalogless
+from TwitchChannelPointsMiner import completed_game_drop_guard_patch as completed_guard
 from TwitchChannelPointsMiner import catalogless_game_drop_runtime_patch as runtime
 from TwitchChannelPointsMiner import configured_drop_game_priority_patch as configured
 from TwitchChannelPointsMiner import drop_games_patch
@@ -176,7 +177,32 @@ def _catalogless_rejected(
     return _safe_number(rejections.get((f"game:{game_key}", username))) > now
 
 
+def _completed_inventory_blocks_channel(
+    twitch: Any,
+    streamer: Any,
+    config: dict[str, Any],
+    game_key: str,
+    now: float,
+) -> bool:
+    """Reject catalog-only watching when current inventory proves it is finished.
+
+    Do not treat missing inventory, an absent campaign, or a generic eligibility
+    flag as completion. A new campaign ID advertised by the channel overrides
+    the old campaign's completed state.
+    """
+    state = completed_guard._inventory_state_for_game(
+        twitch, game_key, now, config
+    )
+    if state is None or not state["blocked"]:
+        return False
+    if completed_guard._has_new_campaign(streamer, state["terminal_ids"]):
+        return False
+    completed_guard._log_guard(config, state)
+    return True
+
+
 def _catalogless_candidate(
+    twitch: Any,
     streamers: list[Any],
     config: dict[str, Any],
     game_key: str,
@@ -203,6 +229,10 @@ def _catalogless_candidate(
         if games and game_key not in games:
             continue
         if _catalogless_rejected(config, game_key, streamer.username, now):
+            continue
+        if _completed_inventory_blocks_channel(
+            twitch, streamer, config, game_key, now
+        ):
             continue
         indexes.append(index)
 
@@ -243,6 +273,7 @@ def _explicit_candidate(
         if real is not None:
             return real
         synthetic = _catalogless_candidate(
+            twitch,
             streamers,
             config,
             game_key,
@@ -270,7 +301,11 @@ def _completion_candidate(
         indexes = [
             index
             for index, streamer in enumerate(streamers)
-            if index not in excluded_indexes and configured._eligible_for_campaign(streamer, campaign)
+            if index not in excluded_indexes
+            # A broad DROPS_ENABLED directory entry is not evidence that the
+            # account can earn this specific already-started campaign.
+            and _source(streamer) != "game_drop"
+            and configured._eligible_for_campaign(streamer, campaign)
         ]
         if not indexes:
             continue
@@ -412,6 +447,10 @@ def _validate_synthetic_owner(
         return False, None
     streamer = streamers[index]
 
+    if _completed_inventory_blocks_channel(
+        twitch, streamer, config, game_key, time.time()
+    ):
+        return False, index
     if _catalogless_rejected(config, game_key, username, time.time()):
         return False, index
     if not configured._watchable(streamer):
@@ -474,6 +513,14 @@ def _observe_slot(
     if state.get("kind") != "game_drop" or not state.get("synthetic"):
         index = _streamer_index(streamers, str(state.get("username") or ""))
         if index is None:
+            _clear_slot(config, name)
+            return None, None
+        if state.get("kind") == "drop_completion" and _source(streamers[index]) == "game_drop":
+            logger.info(
+                "Releasing generic Drops directory channel %s from started campaign %s; specific eligibility is unverified",
+                state.get("username"),
+                state.get("campaign_id"),
+            )
             _clear_slot(config, name)
             return None, None
         campaign = (config.get("campaigns_by_id", {}) or {}).get(state.get("campaign_id"))

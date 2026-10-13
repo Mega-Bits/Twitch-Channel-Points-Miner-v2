@@ -156,6 +156,13 @@ def _inventory_state_for_game(
             for drop in (campaign.get("timeBasedDrops") or [])
             if isinstance(drop, dict)
         ]
+        # An ACTIVE campaign without a Drop list is an incomplete API response,
+        # not proof that the viewer has earned or exhausted every reward.
+        if not drops and status not in _TERMINAL_STATUSES:
+            if campaign_id:
+                open_ids.add(campaign_id)
+            continue
+
         states = [_drop_state(drop, campaign_end, now) for drop in drops]
         farmable = any(state["finishable"] for state in states)
         if farmable and status not in _TERMINAL_STATUSES:
