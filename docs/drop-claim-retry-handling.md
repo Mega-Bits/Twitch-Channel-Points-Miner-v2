@@ -32,9 +32,12 @@ claim paths.
 - One request for an instance can be in flight at a time (2-minute reservation).
 - Failed attempts retry after **5, 15, 30, then 60 minutes**, staying at a
   60-minute maximum instead of retrying on every inventory update.
-- A successful or already-claimed status suppresses duplicate requests and
-  notifications for **6 hours**, after which a still-unclaimed inventory entry
-  can be checked again.
+- A newly accepted (`ELIGIBLE_FOR_ALL`) response suppresses repeat claims
+  for **30 minutes**. If Twitch's inventory still says `isClaimed=false`
+  afterward, the miner can recheck instead of silently losing the claim for
+  hours.
+- A definitive `DROP_INSTANCE_ALREADY_CLAIMED` response suppresses requests
+  for **6 hours**; new-claim notifications are not emitted for this status.
 - When the Twitch inventory explicitly reports `isClaimed=true` for that
   instance, its retry state is cleared. Missing inventory is *not* evidence of
   claim confirmation, and no claim state is persisted to disk.
