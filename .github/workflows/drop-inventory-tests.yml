@@ -23,5 +23,9 @@ jobs:
           cache: pip
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
+      - name: Apply the same runtime patches as the Docker image
+        run: |
+          patch --batch --forward -p1 < patches/drop-campaign-state-machine.patch
+          patch --batch --forward -p1 < patches/drop-campaign-single-progress.patch
       - name: Test claimed Drop selection and campaign handoff
         run: python -m unittest discover -s tests -v
