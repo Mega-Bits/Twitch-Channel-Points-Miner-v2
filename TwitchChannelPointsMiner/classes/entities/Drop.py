@@ -81,8 +81,13 @@ class Drop(object):
         self.current_minutes_watched = progress["currentMinutesWatched"]
         self.drop_instance_id = progress["dropInstanceID"]
         self.is_claimed = progress["isClaimed"]
+        # Twitch may provide a Drop instance before the reward is complete.
+        # An instance ID by itself is not proof that a claim is possible.
         self.is_claimable = (
-            self.is_claimed is False and self.drop_instance_id is not None
+            self.is_claimed is False
+            and self.drop_instance_id is not None
+            and self.has_preconditions_met is True
+            and self.current_minutes_watched >= self.minutes_required
         )
         self.percentage_progress = updated_percentage
 
