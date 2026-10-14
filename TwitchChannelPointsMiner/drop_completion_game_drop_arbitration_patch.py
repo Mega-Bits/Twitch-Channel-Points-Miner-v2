@@ -15,6 +15,7 @@ from TwitchChannelPointsMiner import drop_priority_order_patch as priority_order
 from TwitchChannelPointsMiner import dual_game_drop_idle_slot_patch as dual
 from TwitchChannelPointsMiner import finish_started_drops_patch
 from TwitchChannelPointsMiner import game_drop_progress_verification_patch as verification
+from TwitchChannelPointsMiner import watch_transport_health as watch_health
 from TwitchChannelPointsMiner.classes.Settings import Priority
 from TwitchChannelPointsMiner.classes.Twitch import Twitch
 
@@ -728,7 +729,10 @@ def _select_streamers(
 
     _mirror_primary(config, primary)
     result = [primary_index]
-    if max_watch_amount < 2:
+    if max_watch_amount < 2 or watch_health.exclusive_drop_watch_enabled():
+        # Optional diagnostics mode: only one active Twitch playback session
+        # while mining Drops. This avoids possible interference from a second
+        # points-only watch request, at the cost of that second watch slot.
         _clear_slot(config, _SECONDARY)
         _mirror_secondary(config, None)
         return result
