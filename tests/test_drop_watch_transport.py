@@ -135,7 +135,7 @@ class WatchTransportTests(TestCase):
         self.assertEqual(len(posts), 2)
         warning.assert_not_called()
         self.assertEqual(info.call_count, 1)
-        self.assertIn("3 HLS HEAD(s)", str(info.call_args))
+        self.assertEqual(info.call_args.args[2], 3)
         self.streamers[0].stream.update_minute_watched.assert_called_once()
         self.streamers[1].stream.update_minute_watched.assert_called_once()
 
