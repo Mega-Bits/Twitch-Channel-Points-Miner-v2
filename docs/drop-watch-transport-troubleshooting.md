@@ -16,8 +16,25 @@ upstream TwitchDropsMiner than the earlier one-segment default.
 `TWITCH_HLS_HEAD_MODE=all` probes multiple segments for *both* watch slots,
 which increases HTTP traffic and is not recommended by default on a Pi.
 
-Both HLS and the legacy Spade `minute-watched` request remain in use, and
-both watch slots and Channel Points behavior are preserved.
+Both HLS and the legacy Spade `minute-watched` request remain in use.
+By default both watch slots and Channel Points behavior are preserved.
+
+If progress is still stuck while HLS+Spade transport succeeds, an **opt-in**
+isolation test is available:
+
+```yaml
+environment:
+  TWITCH_DROP_EXCLUSIVE_WATCH: "true"
+```
+
+With this enabled, **only one Twitch watch session is active when a Drop
+campaign is selected**; the second watch slot is unused rather than alternating
+Spade/playlist requests for two channels. This can test whether a second
+concurrent watch session is displacing Twitch Drop credit. Note that Channel
+Points or Watch Streaks on the second channel may be reduced while enabled.
+Disable the option to restore normal two-slot operation. The option has no
+effect when no Drop is selected. Twitch determines credited watchtime; this
+option is diagnostic, not a guaranteed remedy.
 
 The miner now logs throttled warnings (no more than once every five minutes
 per channel/stage) if a playback token, master/variant HLS playlist, segment
