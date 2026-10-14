@@ -13,6 +13,7 @@ import string
 import time
 import requests
 import validators
+from TwitchChannelPointsMiner import watch_transport_health as watch_health
 # import json
 
 from pathlib import Path
@@ -463,6 +464,9 @@ class Twitch(object):
                     # next_iteration = time.time() + 60 / len(streamers_watching)
                     next_iteration = time.time() + 20 / len(streamers_watching)
 
+                    watch_stage = "PlaybackAccessToken"
+                    drop_transport = False
+                    hls_head_count = 0
                     try:
                         ####################################
                         # Start of fix for 2024/5 API Change
@@ -485,9 +489,12 @@ class Twitch(object):
                             logger.debug(
                                 f"Sent PlaybackAccessToken request for {streamers[index]}")
 
-                            if 'data' not in responsePlaybackAccessToken:
-                                logger.error(
-                                    f"Invalid response from Twitch: {responsePlaybackAccessToken}")
+                            if not isinstance(responsePlaybackAccessToken, dict) or not isinstance(
+                                responsePlaybackAccessToken.get("data"), dict
+                            ):
+                                watch_health.transport_failed(
+                                    self, streamers[index], watch_stage
+                                )
                                 continue
 
                             streamPlaybackAccessToken = responsePlaybackAccessToken["data"].get(
@@ -497,13 +504,16 @@ class Twitch(object):
                             value = streamPlaybackAccessToken.get("value")
 
                             if not signature or not value:
-                                logger.error(
-                                    f"Missing signature or value in Twitch response: {responsePlaybackAccessToken}")
+                                watch_health.transport_failed(
+                                    self, streamers[index], watch_stage
+                                )
                                 continue
 
-                        except Exception as e:
-                            logger.error(
-                                f"Error fetching PlaybackAccessToken for {streamers[index]}: {str(e)}")
+                        except Exception as exc:
+                            watch_health.transport_failed(
+                                self, streamers[index], watch_stage,
+                                exception_type=type(exc).__name__,
+                            )
                             continue
 
                         # encoded_value = quote(json.dumps(value))
@@ -512,6 +522,7 @@ class Twitch(object):
                         RequestBroadcastQualitiesURL = f"https://usher.ttvnw.net/api/channel/hls/{streamers[index].username}.m3u8?sig={signature}&token={value}"
 
                         # Get list of video qualities
+                        watch_stage = "usher master playlist"
                         responseBroadcastQualities = requests.get(
                             RequestBroadcastQualitiesURL,
                             headers={"User-Agent": self.user_agent},
@@ -521,6 +532,10 @@ class Twitch(object):
                             f"Send RequestBroadcastQualitiesURL request for {streamers[index]} - Status code: {responseBroadcastQualities.status_code}"
                         )
                         if responseBroadcastQualities.status_code != 200:
+                            watch_health.transport_failed(
+                                self, streamers[index], watch_stage,
+                                http_status=responseBroadcastQualities.status_code,
+                            )
                             continue
                         BroadcastQualities = responseBroadcastQualities.text
 
@@ -533,10 +548,13 @@ class Twitch(object):
                             if validators.url(line.strip())
                         ]
                         if not quality_urls:
-                            logger.warning("No valid HLS quality URL for %s", streamers[index])
+                            watch_health.transport_failed(
+                                self, streamers[index], "usher HLS renditions",
+                            )
                             continue
                         BroadcastLowestQualityURL = quality_urls[-1]
 
+                        watch_stage = "HLS rendition playlist"
                         responseStreamURLList = requests.get(
                             BroadcastLowestQualityURL,
                             headers={"User-Agent": self.user_agent},
@@ -546,6 +564,10 @@ class Twitch(object):
                             f"Send BroadcastLowestQualityURL request for {streamers[index]} - Status code: {responseStreamURLList.status_code}"
                         )
                         if responseStreamURLList.status_code != 200:
+                            watch_health.transport_failed(
+                                self, streamers[index], watch_stage,
+                                http_status=responseStreamURLList.status_code,
+                            )
                             continue
 
                         segment_urls = [
@@ -554,25 +576,33 @@ class Twitch(object):
                             if validators.url(line.strip())
                         ]
                         if not segment_urls:
-                            logger.warning("No HLS segments found for %s", streamers[index])
+                            watch_health.transport_failed(
+                                self, streamers[index], "HLS segment playlist",
+                            )
                             continue
 
-                        # Default: retain the original single HEAD request.
-                        # Set TWITCH_HLS_HEAD_MODE=all to test requesting each
-                        # current playlist segment, as in DevilXD's miner.
-                        # Keep the existing Spade minute-watched event in both modes.
-                        import os
-                        head_mode = os.environ.get("TWITCH_HLS_HEAD_MODE", "single").lower()
-                        urls_to_check = (
-                            segment_urls[:15] if head_mode == "all"
-                            else segment_urls[-1:]
+                        # Auto: probe the full HLS playlist for the authoritative
+                        # Drop watch slot, as the upstream Drops miner does.
+                        # Point-only secondary slots retain one lightweight HEAD.
+                        # Override with TWITCH_HLS_HEAD_MODE=single/all.
+                        from TwitchChannelPointsMiner import drop_games_patch as game_config_patch
+                        watch_config = game_config_patch._CONFIG.get(id(self))
+                        drop_transport = watch_health.is_drop_watch(
+                            watch_config, streamers[index],
                         )
+                        full_playlist = watch_health.use_full_playlist(
+                            watch_config, streamers[index],
+                        )
+                        urls_to_check = watch_health.head_segments(
+                            segment_urls, full=full_playlist,
+                        )
+                        watch_stage = "HLS segment HEAD"
                         all_segments_ok = True
                         for segment_url in urls_to_check:
                             head_response = requests.head(
                                 segment_url,
                                 headers={"User-Agent": self.user_agent},
-                                timeout=20,
+                                timeout=10,
                                 allow_redirects=True,
                             )
                             logger.debug(
@@ -580,12 +610,23 @@ class Twitch(object):
                                 streamers[index], head_response.status_code,
                             )
                             if head_response.status_code != 200:
+                                watch_health.transport_failed(
+                                    self, streamers[index], watch_stage,
+                                    http_status=head_response.status_code,
+                                )
                                 all_segments_ok = False
                                 break
+                            hls_head_count += 1
                         if not all_segments_ok:
                             continue
                         # End of fix for 2024/5 API Change
                         ##################################
+                        watch_stage = "Spade minute-watched"
+                        if not streamers[index].stream.spade_url:
+                            watch_health.transport_failed(
+                                self, streamers[index], watch_stage,
+                            )
+                            continue
                         response = requests.post(
                             streamers[index].stream.spade_url,
                             data=streamers[index].stream.encode_payload(),
@@ -597,6 +638,10 @@ class Twitch(object):
                             f"Send minute watched request for {streamers[index]} - Status code: {response.status_code}"
                         )
                         if response.status_code == 204:
+                            if drop_transport:
+                                watch_health.transport_accepted(
+                                    self, streamers[index], hls_head_count,
+                                )
                             streamers[index].stream.update_minute_watched()
 
                             """
@@ -653,13 +698,23 @@ class Twitch(object):
                                                 Events.DROP_STATUS,
                                             )
 
-                    except requests.exceptions.ConnectionError as e:
-                        logger.error(
-                            f"Error while trying to send minute watched: {e}")
+                        else:
+                            watch_health.transport_failed(
+                                self, streamers[index], watch_stage,
+                                http_status=response.status_code,
+                            )
+
+                    except requests.exceptions.ConnectionError as exc:
+                        watch_health.transport_failed(
+                            self, streamers[index], watch_stage,
+                            exception_type=type(exc).__name__,
+                        )
                         self.__check_connection_handler(chunk_size)
-                    except requests.exceptions.Timeout as e:
-                        logger.error(
-                            f"Error while trying to send minute watched: {e}")
+                    except requests.exceptions.Timeout as exc:
+                        watch_health.transport_failed(
+                            self, streamers[index], watch_stage,
+                            exception_type=type(exc).__name__,
+                        )
 
                     self.__chuncked_sleep(
                         next_iteration - time.time(), chunk_size=chunk_size
