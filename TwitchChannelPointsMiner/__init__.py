@@ -13,6 +13,7 @@ from .completed_game_drop_guard_patch import apply_patch as _apply_completed_gam
 from .configured_drop_game_priority_patch import apply_patch as _apply_configured_drop_game_priority_patch
 from .discord_format_patch import apply_patch as _apply_discord_format_patch
 from .drop_claim_game_patch import apply_patch as _apply_drop_claim_game_patch
+from .drop_completion_campaign_eligibility_patch import apply_patch as _apply_drop_completion_campaign_eligibility_patch
 from .drop_completion_game_drop_arbitration_patch import apply_patch as _apply_drop_completion_game_drop_arbitration_patch
 from .drop_game_main_list_preference_patch import apply_patch as _apply_drop_game_main_list_preference_patch
 from .drop_games_patch import apply_patch as _apply_drop_games_patch
@@ -67,6 +68,7 @@ _apply_catalogless_game_drop_session_latch_patch()
 _apply_game_drop_progress_verification_patch()
 _apply_dual_game_drop_idle_slot_patch()
 _apply_drop_completion_game_drop_arbitration_patch()
+_apply_drop_completion_campaign_eligibility_patch()
 _apply_game_drop_retry_failover_patch()
 # The dashboard and watch notifications must both wrap the final authoritative
 # selector. Earlier wrappers remain useful for lifecycle/inventory hooks, while
@@ -85,6 +87,7 @@ del _apply_completed_game_drop_guard_patch
 del _apply_configured_drop_game_priority_patch
 del _apply_discord_format_patch
 del _apply_drop_claim_game_patch
+del _apply_drop_completion_campaign_eligibility_patch
 del _apply_drop_completion_game_drop_arbitration_patch
 del _apply_drop_game_main_list_preference_patch
 del _apply_drop_games_patch
