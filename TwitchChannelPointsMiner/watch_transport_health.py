@@ -33,6 +33,15 @@ def is_drop_watch(config: dict[str, Any] | None, streamer: Any) -> bool:
     )
 
 
+def exclusive_drop_watch_enabled(value: str | None = None) -> bool:
+    """Opt-in Drop isolation: leave the second watch slot idle for the session."""
+    setting = str(
+        value if value is not None
+        else os.environ.get("TWITCH_DROP_EXCLUSIVE_WATCH", "false")
+    ).strip().casefold()
+    return setting in {"1", "true", "yes", "on"}
+
+
 def use_full_playlist(config: dict[str, Any] | None, streamer: Any, mode: str | None = None) -> bool:
     """TWITCH_HLS_HEAD_MODE: auto (default), all, or single."""
     value = str(
