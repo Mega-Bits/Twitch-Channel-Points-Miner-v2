@@ -44,6 +44,14 @@ class HeadPolicyTests(TestCase):
         self.config["active_selection_kind"] = "drop_completion"
         self.assertTrue(health.use_full_playlist(self.config, self.streamer, "auto"))
 
+    def test_exclusive_playback_is_opt_in(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(health.exclusive_drop_watch_enabled())
+        self.assertFalse(health.exclusive_drop_watch_enabled("false"))
+        self.assertTrue(health.exclusive_drop_watch_enabled("true"))
+        self.assertTrue(health.exclusive_drop_watch_enabled("1"))
+        self.assertTrue(health.exclusive_drop_watch_enabled("ON"))
+
     def test_head_modes_override_auto(self):
         self.assertFalse(health.use_full_playlist(self.config, self.streamer, "single"))
         self.assertTrue(health.use_full_playlist(None, self.streamer, "all"))
@@ -56,6 +64,38 @@ class HeadPolicyTests(TestCase):
         self.assertEqual(health.head_segments(seq, full=True), seq[-15:])
         self.assertEqual(health.head_segments(seq, full=False), seq[-1:])
         self.assertEqual(health.head_segments([], full=True), [])
+
+
+class ExclusiveDropWatchTests(TestCase):
+    def test_enabled_option_returns_only_the_primary_drop_slot(self):
+        from TwitchChannelPointsMiner import (
+            drop_completion_game_drop_arbitration_patch as controller,
+        )
+
+        config = {}
+        primary = {
+            "kind": "game_drop",
+            "username": "drop-channel",
+            "campaign_id": "some-campaign",
+            "game_key": "marvel rivals",
+            "index": 0,
+        }
+        controller._set_slot(config, controller._PRIMARY, primary)
+        controller._set_slot(
+            config,
+            controller._SECONDARY,
+            {"kind": "game_drop", "username": "points-channel", "index": 1},
+        )
+        streamers = [_streamer("drop-channel"), _streamer("points-channel")]
+        with (
+            patch.dict(os.environ, {"TWITCH_DROP_EXCLUSIVE_WATCH": "true"}),
+            patch.object(controller, "_observe_slot", return_value=(primary, 0)),
+        ):
+            selected = controller._select_streamers(None, streamers, [], 2, config)
+
+        self.assertEqual(selected, [0])
+        self.assertIsNone(controller._slot(config, controller._SECONDARY))
+        self.assertEqual(config["active_selection_streamer"], "drop-channel")
 
 
 class WatchTransportTests(TestCase):
